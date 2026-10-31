@@ -977,7 +977,7 @@ function openSettings() {
 /* =====================================================================
    Liaisons lecteur → interface
    ===================================================================== */
-player.addEventListener('change', () => renderNP());
+player.addEventListener('change', () => { renderNP(); if (ctx.guest) { renderBanner(); refreshJamSheet(); } });
 player.addEventListener('time', () => tick());
 player.addEventListener('status', () => { renderBanner(); refreshJamSheet(); if (player.status === 'ended') guestEnded(); });
 

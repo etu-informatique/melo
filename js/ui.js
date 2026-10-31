@@ -113,7 +113,8 @@ export function hueOf(str) {
 }
 
 export function initials(name) {
-  return String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+  const words = String(name || '').replace(/\(.*?\)/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').trim().split(/\s+/).filter(Boolean);
+  return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
 }
 
 /** Pochette de repli dessinée en SVG (data URI) quand une image manque. */

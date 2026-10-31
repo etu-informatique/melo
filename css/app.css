@@ -270,7 +270,7 @@ body.is-playing .eq i { animation: eq 1s ease-in-out infinite; }
 .ml-row:active { opacity: .6; }
 
 .seg { display: flex; background: var(--fill); border-radius: 9px; padding: 2px; margin: 6px var(--pad) 10px; }
-.seg button { flex: 1; height: 30px; border-radius: 7px; font-size: 13px; font-weight: 500; transition: background .2s, box-shadow .2s; white-space: nowrap; padding: 0 6px; }
+.seg button { flex: 1; height: 30px; border-radius: 7px; font-size: 12.5px; letter-spacing: -.1px; font-weight: 500; transition: background .2s, box-shadow .2s; white-space: nowrap; padding: 0 6px; }
 .seg button.on { background: var(--elev); box-shadow: 0 2px 6px rgba(0, 0, 0, .12), 0 0 0 .5px rgba(0, 0, 0, .04); font-weight: 600; }
 .seg.small { max-width: 330px; }
 
@@ -689,7 +689,10 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 .install p { color: var(--text2); font-size: 14px; margin: 10px 0 6px; }
 
 /* Toasts */
-#toast-root { position: fixed; z-index: 100; left: 0; right: 0; top: calc(var(--st) + 10px); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+#toast-root { position: fixed; z-index: 100; left: var(--side); right: 0; bottom: calc(var(--tabbar-h) + var(--sb) + 16px); display: flex; flex-direction: column-reverse; align-items: center; gap: 8px; pointer-events: none; }
+body.has-mini #toast-root { bottom: calc(var(--tabbar-h) + var(--sb) + var(--mini-h) + 22px); }
+body.np-open #toast-root, body.car-on #toast-root { left: 0; bottom: auto; top: calc(var(--st) + 14px); }
+@media (min-width: 1000px) { #toast-root { bottom: 24px; } body.has-mini #toast-root { bottom: calc(var(--mini-h) + 34px); } }
 .toast {
   display: flex; align-items: center; gap: 10px; max-width: min(92vw, 420px); padding: 11px 18px; border-radius: 22px; font-size: 14.5px; font-weight: 500;
   background: var(--glass-strong); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
@@ -706,8 +709,8 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 }
 .car-x { position: absolute; top: calc(var(--st) + 14px); right: 16px; width: 44px; height: 44px; border-radius: 50%; background: rgba(255, 255, 255, .14); display: flex; align-items: center; justify-content: center; z-index: 2; }
 .car-x .ic { width: 20px; height: 20px; }
-.car-now { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 1fr auto auto; column-gap: 3vw; row-gap: 3vh; align-items: center; height: 100%; }
-.car-art { grid-row: 1 / 2; width: min(32vw, 52vh); aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: #222; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
+.car-now { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; column-gap: 3vw; row-gap: 4vh; align-items: center; align-content: center; height: 100%; min-height: 0; }
+.car-art { grid-row: 1 / 2; width: min(30vw, 42vh); aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: #222; box-shadow: 0 20px 60px rgba(0, 0, 0, .6); }
 .car-art img { width: 100%; height: 100%; object-fit: cover; }
 .car-meta { min-width: 0; }
 .car-t { font-size: clamp(22px, 4vw, 44px); font-weight: 800; line-height: 1.1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -715,12 +718,12 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 .car-bar { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .2); overflow: hidden; }
 .car-bar i { display: block; height: 100%; background: #fff; transform-origin: left; transform: scaleX(0); }
 .car-ctrl { grid-column: 1 / -1; display: flex; justify-content: space-around; }
-.car-ctrl button { width: clamp(70px, 12vw, 120px); height: clamp(70px, 12vw, 120px); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.car-ctrl button { width: clamp(56px, min(12vw, 20vh), 120px); height: clamp(56px, min(12vw, 20vh), 120px); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .car-ctrl button .ic { width: 55%; height: 55%; }
 .car-ctrl button.big { background: #fff; color: #000; }
 .car-ctrl button:active { transform: scale(.9); }
 .car-side { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1.6vh; min-width: 0; }
-.car-qr { width: min(26vw, 44vh); aspect-ratio: 1; background: #fff; border-radius: 18px; padding: 12px; }
+.car-qr { width: min(26vw, 40vh); aspect-ratio: 1; background: #fff; border-radius: 18px; padding: 12px; }
 .car-qr svg { width: 100%; height: 100%; display: block; }
 .car-code { font-size: clamp(22px, 3.4vw, 40px); font-weight: 800; letter-spacing: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
 .car-hint { color: rgba(255, 255, 255, .65); font-size: clamp(13px, 1.6vw, 18px); }
