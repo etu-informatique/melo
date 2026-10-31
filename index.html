@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Mélo</title>
+<meta name="description" content="Mélo — écoutez, partagez et choisissez la musique ensemble, en voiture comme partout.">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mélo">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <aside id="sidebar">
+    <div class="sb-brand"><img src="icons/icon.svg" alt=""><span>Mélo</span></div>
+    <button class="sb-search" data-tab="search"><span class="i" data-icon="search"></span><span>Rechercher</span></button>
+    <nav class="sb-nav">
+      <a data-tab="home"><span class="i" data-icon="home"></span>Accueil</a>
+      <a data-tab="browse"><span class="i" data-icon="grid"></span>Nouveautés</a>
+      <a data-tab="radio"><span class="i" data-icon="radio"></span>Radio</a>
+      <div class="sb-sec">Bibliothèque</div>
+      <a data-go="library/songs"><span class="i" data-icon="note"></span>Morceaux</a>
+      <a data-go="library/artists"><span class="i" data-icon="mic"></span>Artistes</a>
+      <a data-go="library/albums"><span class="i" data-icon="album"></span>Albums</a>
+      <a data-go="library/favorites"><span class="i" data-icon="star"></span>Favoris</a>
+      <a data-go="library/playlists"><span class="i" data-icon="playlist"></span>Playlists</a>
+      <div class="sb-sec">Ensemble</div>
+      <a data-action="jam"><span class="i" data-icon="people"></span>Session partagée</a>
+      <a data-action="car"><span class="i" data-icon="car"></span>Mode voiture</a>
+    </nav>
+  </aside>
+
+  <div id="jam-banner" hidden></div>
+
+  <header id="navbar">
+    <button id="nav-back" class="nav-back" hidden><span class="i" data-icon="chevL"></span><span class="lbl"></span></button>
+    <div id="nav-title"></div>
+    <div id="nav-actions"></div>
+  </header>
+
+  <main id="main" tabindex="-1"></main>
+
+  <div id="mini" class="mini" hidden>
+    <div class="mini-art"><img alt=""></div>
+    <div class="mini-meta"><div class="mini-title"></div><div class="mini-sub"></div></div>
+    <button class="mini-btn" data-p="toggle" aria-label="Lecture/Pause"><span class="i" data-icon="play"></span></button>
+    <button class="mini-btn" data-p="next" aria-label="Suivant"><span class="i" data-icon="forward"></span></button>
+    <div class="mini-prog"><i></i></div>
+  </div>
+
+  <nav id="tabbar">
+    <a data-tab="home"><span class="i" data-icon="home"></span><span>Accueil</span></a>
+    <a data-tab="browse"><span class="i" data-icon="grid"></span><span>Nouveautés</span></a>
+    <a data-tab="radio"><span class="i" data-icon="radio"></span><span>Radio</span></a>
+    <a data-tab="library"><span class="i" data-icon="library"></span><span>Bibliothèque</span></a>
+    <a data-tab="search"><span class="i" data-icon="search"></span><span>Recherche</span></a>
+  </nav>
+</div>
+
+<section id="np" aria-hidden="true">
+  <div class="np-bg"><img class="b1" alt=""><img class="b2" alt=""><div class="np-shade"></div></div>
+  <div class="np-inner">
+    <div class="np-grab"><i></i></div>
+    <div class="np-head">
+      <img class="np-head-art" alt="">
+      <div class="np-head-meta"><div class="t"></div><div class="a"></div></div>
+      <button class="np-icon np-fav" data-p="fav"><span class="i" data-icon="star"></span></button>
+      <button class="np-icon np-more" data-p="more"><span class="i" data-icon="more"></span></button>
+    </div>
+    <div class="np-art"><img alt=""><span class="np-badge" hidden></span></div>
+    <div class="np-panel np-lyrics"></div>
+    <div class="np-panel np-queue"></div>
+    <div class="np-meta">
+      <div class="np-titles"><div class="np-title"><span></span></div><button class="np-artist"></button></div>
+      <button class="np-icon np-fav" data-p="fav"><span class="i" data-icon="star"></span></button>
+      <button class="np-icon np-more" data-p="more"><span class="i" data-icon="more"></span></button>
+    </div>
+    <div class="np-scrub" role="slider" aria-label="Position">
+      <div class="track"><i class="fill"></i></div>
+      <div class="times"><span class="cur">0:00</span><span class="live" hidden>EN DIRECT</span><span class="rem">-0:00</span></div>
+    </div>
+    <div class="np-ctrls">
+      <button data-p="prev" aria-label="Précédent"><span class="i" data-icon="backward"></span></button>
+      <button data-p="toggle" class="big" aria-label="Lecture/Pause"><span class="i" data-icon="play"></span></button>
+      <button data-p="next" aria-label="Suivant"><span class="i" data-icon="forward"></span></button>
+    </div>
+    <div class="np-vol">
+      <span class="i" data-icon="volLow"></span>
+      <div class="track"><i class="fill"></i></div>
+      <span class="i" data-icon="volHigh"></span>
+    </div>
+    <div class="np-bottom">
+      <button data-p="lyrics" aria-label="Paroles"><span class="i" data-icon="quote"></span></button>
+      <button data-p="jam" aria-label="Session partagée"><span class="i" data-icon="people"></span><b class="np-jam-count" hidden></b></button>
+      <button data-p="queue" aria-label="À suivre"><span class="i" data-icon="list"></span></button>
+    </div>
+  </div>
+</section>
+
+<div id="sheet-root"></div>
+<div id="toast-root"></div>
+<audio id="audio" preload="auto" playsinline></audio>
+
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" defer></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
