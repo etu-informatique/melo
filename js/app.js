@@ -725,7 +725,7 @@ async function loadLyrics() {
   lyr.data = d;
   if (!d || (!d.lines.length && !d.instrumental)) { lbox.innerHTML = `<div class="ly-none">${icon('quote')}<p>Paroles indisponibles pour ce morceau.</p></div>`; return; }
   if (d.instrumental) { lbox.innerHTML = `<div class="ly-none">${icon('note')}<p>Morceau instrumental</p></div>`; return; }
-  lbox.innerHTML = `<div class="ly ${d.synced ? 'synced' : 'plain'}">${d.lines.map((l, i) => `<p data-lt="${l.t}" data-li="${i}">${esc(l.text) || '<span class="ly-dots">• • •</span>'}</p>`).join('')}<div class="ly-src">Paroles : LRCLIB</div></div>`;
+  lbox.innerHTML = `<div class="ly ${d.synced ? 'synced' : 'plain'}">${d.lines.map((l, i) => `<p data-lt="${l.t}" data-li="${i}">${esc(l.text) || '<span class="ly-dots">• • •</span>'}</p>`).join('')}<div class="ly-src">Paroles : ${d.source === 'lyrics.ovh' ? 'lyrics.ovh' : 'LRCLIB'}</div></div>`;
   lyrIdx = -1;
   syncLyrics(player.position);
 }

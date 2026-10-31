@@ -31,6 +31,9 @@ const aud = (path, params = {}) => {
 
 /* ---------- Normalisation ---------- */
 
+// Les images Audius sont répliquées sur de nombreux serveurs, parfois lents : on passe par le nœud principal.
+const fixArt = (u) => (u ? u.replace(/^https:\/\/[^/]+\/content\//,'https://creatornode.audius.co/content/') : '');
+
 export function audiusTrack(t) {
   if (!t || !t.id) return null;
   if (t.is_streamable === false || t.is_delete || (t.access && t.access.stream === false) || t.is_stream_gated) return null;
@@ -42,8 +45,8 @@ export function audiusTrack(t) {
     title: t.title,
     artist: t.user?.name || 'Artiste inconnu',
     artistId: t.user ? `au:${t.user.id}` : null,
-    art: art['480x480'] || art['150x150'] || '',
-    artLg: art['1000x1000'] || art['480x480'] || '',
+    art: fixArt(art['480x480'] || art['150x150']),
+    artLg: fixArt(art['1000x1000'] || art['480x480']),
     duration: t.duration || 0,
     genre: t.genre || '',
     mood: t.mood || '',
@@ -62,9 +65,9 @@ export function audiusUser(u) {
     rid: u.id,
     name: u.name,
     handle: u.handle,
-    art: p['480x480'] || p['150x150'] || '',
-    artLg: p['1000x1000'] || p['480x480'] || '',
-    cover: u.cover_photo?.['2000x'] || u.cover_photo?.['640x'] || '',
+    art: fixArt(p['480x480'] || p['150x150']),
+    artLg: fixArt(p['1000x1000'] || p['480x480']),
+    cover: fixArt(u.cover_photo?.['2000x'] || u.cover_photo?.['640x']),
     bio: u.bio || '',
     followers: u.follower_count || 0,
     tracks: u.track_count || 0,
@@ -84,8 +87,8 @@ export function audiusPlaylist(p) {
     title: p.playlist_name,
     artist: p.user?.name || '',
     artistId: p.user ? `au:${p.user.id}` : null,
-    art: art['480x480'] || art['150x150'] || '',
-    artLg: art['1000x1000'] || art['480x480'] || '',
+    art: fixArt(art['480x480'] || art['150x150']),
+    artLg: fixArt(art['1000x1000'] || art['480x480']),
     desc: p.description || '',
     count: p.track_count || 0,
   };
@@ -279,6 +282,14 @@ export async function lyrics(track) {
       if (d && (d.syncedLyrics || d.plainLyrics)) return parseLyrics(d);
     } catch { /* essaie la suivante */ }
   }
+  // Secours : paroles non synchronisées.
+  try {
+    const d = await getJSON(`https://api.lyrics.ovh/v1/${encodeURIComponent(a.split(/,|&| feat/i)[0].trim())}/${encodeURIComponent(t)}`, { ttl: 24 * 3600e3, timeout: 8000 });
+    if (d && d.lyrics && d.lyrics.trim()) {
+      const text = d.lyrics.replace(/\r/g, '').replace(/^Paroles de la chanson.*\n/i, '').replace(/\n{3,}/g, '\n\n').trim();
+      return { synced: false, source: 'lyrics.ovh', lines: text.split('\n').map((x) => ({ t: -1, text: x })) };
+    }
+  } catch { /* rien */ }
   return null;
 }
 

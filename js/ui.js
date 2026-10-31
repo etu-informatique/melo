@@ -131,7 +131,12 @@ export function img(src, seed, cls = '', label = '') {
 // Remplace les images cassées par leur pochette de repli.
 document.addEventListener('error', (e) => {
   const t = e.target;
-  if (t && t.tagName === 'IMG' && t.dataset.fb && t.src !== t.dataset.fb) t.src = t.dataset.fb;
+  if (!t || t.tagName !== 'IMG') return;
+  // Les pochettes Audius existent sur plusieurs serveurs : on réessaie sur le serveur principal.
+  const m = t.src.match(/^https:\/\/[^/]+(\/content\/.+)$/);
+  if (m && !t.dataset.retried) { t.dataset.retried = 1; t.src = (t.src.startsWith('https://creatornode.audius.co') ? 'https://audius-content-1.figment.io' : 'https://creatornode.audius.co') + m[1]; return; }
+  if (t.dataset.fb && t.src !== t.dataset.fb) t.src = t.dataset.fb;
+  else if (!t.dataset.fb && !t.src.endsWith('icon.svg')) t.src = 'icons/icon.svg';
 }, true);
 
 /* ---------- Toasts ---------- */
