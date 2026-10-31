@@ -56,13 +56,15 @@ export class Player extends EventTarget {
   playList(tracks, start = 0, { from = '', shuffle = false, by } = {}) {
     if (!tracks.length) return;
     let items = this._wrap(tracks, by);
+    this.gen = (this.gen || 0) + 1;
     this.origOrder = null;
     this.shuffle = false;
     if (shuffle) {
+      const orig = items.map((x) => x.qid);
       const first = items.splice(start > 0 ? start : Math.floor(Math.random() * items.length), 1)[0];
       this._shuffleArr(items);
       items = [first, ...items];
-      this.origOrder = [first, ...items.slice(1)].map((x) => x.qid);
+      this.origOrder = orig;
       this.shuffle = true;
       start = 0;
     }
@@ -90,7 +92,10 @@ export class Player extends EventTarget {
   addLast(tracks, by) {
     const items = this._wrap(Array.isArray(tracks) ? tracks : [tracks], by);
     if (!this.current) { this.queue = items; this.index = 0; this._load(false); this._emit(); return; }
-    this.queue.push(...items);
+    // « Lire en dernier » = fin de « À suivre », avant les morceaux de lecture automatique.
+    let at = this.queue.findIndex((x, i) => i > this.index && x.auto);
+    if (at < 0) at = this.queue.length;
+    this.queue.splice(at, 0, ...items);
     this._emit();
   }
 
@@ -99,15 +104,15 @@ export class Player extends EventTarget {
     this.wantPlay = true;
     if (!this.audio.src) return this._load(true);
     const p = this.audio.play();
-    if (p) p.catch((e) => { if (e.name === 'NotAllowedError') toast('Touchez ▶︎ pour lancer la lecture', 'info'); });
+    if (p) p.catch((e) => { if (e.name === 'NotAllowedError') { this.wantPlay = false; this._emit(); toast('Touchez ▶︎ pour lancer la lecture', 'info'); } });
   }
   pause() { this.wantPlay = false; this.audio.pause(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   next(auto = false) {
     if (!this.queue.length) return;
-    if (auto && this.repeat === 'one') { this.audio.currentTime = 0; this.play(); return; }
     if (auto && this.sleepEnd) { this.sleepEnd = false; this._emit(); this.pause(); return; }
+    if (auto && this.repeat === 'one') { this.audio.currentTime = 0; this.play(); return; }
     if (this.index < this.queue.length - 1) { this.index++; this._load(true); return; }
     if (this.repeat === 'all') { this.index = 0; this._load(true); return; }
     if (this.autoplay) { this._extend(true); return; }
@@ -125,6 +130,7 @@ export class Player extends EventTarget {
     if (!this.current || this.current.live) return;
     try { this.audio.currentTime = Math.max(0, Math.min(sec, (this.duration || 0) - 0.25)); } catch { /* pas encore prêt */ }
     this._emit('time');
+    this._emit('seeked');
   }
 
   jump(qid) {
@@ -196,8 +202,7 @@ export class Player extends EventTarget {
 
   startStation(track) {
     this.playList([track], 0, { from: `Station : ${track.title}` });
-    this.autoplay = true;
-    this._extend(false);
+    if (this.autoplay) this._extend(false); else this.setAutoplay(true);
   }
 
   /** Exécute une commande reçue d'un passager (session partagée). */
@@ -249,18 +254,22 @@ export class Player extends EventTarget {
   _shuffleArr(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 
   async _extend(thenPlay) {
-    if (this.loadingMore) return;
+    if (this.loadingMore) { if (thenPlay) this._playAfterExtend = true; return; }
     this.loadingMore = true;
+    this._playAfterExtend = !!thenPlay;
+    const gen = this.gen;
     try {
       const seed = this.current || this.queue[this.queue.length - 1];
       const exclude = new Set(this.queue.map((x) => x.id));
       const more = await similar(seed, exclude);
+      if (gen !== this.gen) return; // une autre sélection a été lancée entre-temps
+      const play = this._playAfterExtend && this.index >= this.queue.length - 1;
       if (more.length) {
         const items = this._wrap(more).map((x) => ({ ...x, auto: true }));
         this.queue.push(...items);
-        if (thenPlay) { this.index++; this._load(true); } else this._emit();
-      } else if (thenPlay) this.pause();
-    } finally { this.loadingMore = false; }
+        if (play) { this.index++; this._load(true); } else this._emit();
+      } else if (play) this.pause();
+    } finally { this.loadingMore = false; this._playAfterExtend = false; }
   }
 
   _load(autoplay) {
@@ -310,8 +319,8 @@ export class Player extends EventTarget {
       set('previoustrack', () => this.prev());
       set('nexttrack', () => this.next());
       set('seekto', (d) => this.seek(d.seekTime));
-      set('seekbackward', (d) => this.seek(this.position - (d.seekOffset || 10)));
-      set('seekforward', (d) => this.seek(this.position + (d.seekOffset || 10)));
+      // Pas de seekbackward/seekforward : sur iOS ils remplacent les boutons précédent/suivant
+      // (écran verrouillé, CarPlay, commandes au volant).
     }
   }
 

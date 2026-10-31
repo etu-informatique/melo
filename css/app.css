@@ -545,7 +545,7 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 .q-row.gone { opacity: 0; max-height: 0; }
 .q-row::before { content: "Retirer"; position: absolute; inset: 0; background: #ff3b30; display: flex; align-items: center; justify-content: flex-end; padding-right: 20px; font-weight: 600; font-size: 14px; opacity: 0; transition: opacity .15s; }
 .q-row.arm::before { opacity: 1; }
-.q-swipe { display: flex; align-items: center; gap: 12px; height: 60px; position: relative; transition: transform .2s; background: transparent; cursor: pointer; }
+.q-swipe { display: flex; align-items: center; gap: 12px; height: 60px; position: relative; transition: transform .2s; background: transparent; cursor: pointer; touch-action: pan-y; }
 .q-row.arm .q-swipe, .q-row:has(.q-swipe[style*="translateX"]) .q-swipe { background: rgba(0, 0, 0, .0); }
 .q-swipe .row-art { width: 46px; height: 46px; box-shadow: none; background: rgba(255, 255, 255, .1); }
 .q-swipe .row-title { font-size: 15px; }
@@ -566,7 +566,7 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 .q-hist-btn .ic { width: 12px; height: 12px; }
 
 /* ---------- Feuilles ---------- */
-.sheet-wrap { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; }
+.sheet-wrap { position: fixed; inset: 0; z-index: 95; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-dim { position: absolute; inset: 0; background: rgba(0, 0, 0, .4); opacity: 0; transition: opacity .3s; }
 .sheet-wrap.in .sheet-dim { opacity: 1; }
 .sheet {

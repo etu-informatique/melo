@@ -303,6 +303,8 @@ export function onLongPress(root, selector, cb) {
     const t = e.target.closest(selector);
     if (!t) return;
     e.preventDefault();
+    // Sur mobile, l'appui long a déjà ouvert le menu (Android émet aussi « contextmenu »).
+    if (fired || timer || e.pointerType === 'touch' || (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents)) return;
     cb(t, e);
   });
 }

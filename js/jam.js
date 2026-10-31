@@ -85,7 +85,14 @@ export class JamHost extends EventTarget {
 
   get url() { return this.code ? joinUrl(this.code, this.b) : ''; }
 
-  async start(code = newCode(), b = 0) {
+  start(code, b) {
+    // Une seule connexion à la fois, même si on appuie plusieurs fois pendant la connexion.
+    if (this.active) return Promise.resolve(this.code);
+    if (!this._starting) this._starting = this._start(code || newCode(), b || 0).finally(() => { this._starting = null; });
+    return this._starting;
+  }
+
+  async _start(code, b) {
     this.code = code;
     this.status = 'connecting';
     this._emit();
@@ -101,6 +108,7 @@ export class JamHost extends EventTarget {
     this.active = true;
     this.status = 'live';
     this.player.addEventListener('change', this._onChange);
+    this.player.addEventListener('seeked', this._onChange);
     this._tick = setInterval(() => {
       const now = Date.now();
       let changed = false;
@@ -117,6 +125,7 @@ export class JamHost extends EventTarget {
   stop() {
     if (!this.client) return;
     this.player.removeEventListener('change', this._onChange);
+    this.player.removeEventListener('seeked', this._onChange);
     clearInterval(this._tick);
     const c = this.client;
     c.publish(`${this.base}/state`, enc({ ended: true, at: Date.now() }), { qos: 1, retain: true }, () => {
@@ -265,7 +274,11 @@ export class RemotePlayer extends EventTarget {
 
   slim(t) { const { qid, by, ...rest } = t; return rest; }
 
-  playList(tracks, start = 0, { from = '', shuffle = false } = {}) { this.send('playList', { tracks: tracks.slice(0, 150).map((t) => this.slim(t)), start, from, shuffle }); }
+  playList(tracks, start = 0, { from = '', shuffle = false } = {}) {
+    // On n'envoie qu'une fenêtre de 150 morceaux autour de celui touché.
+    const lo = shuffle ? 0 : Math.max(0, Math.min(start - 20, tracks.length - 150));
+    this.send('playList', { tracks: tracks.slice(lo, lo + 150).map((t) => this.slim(t)), start: start < 0 ? start : start - lo, from, shuffle });
+  }
   playNow(track) { this.send('playNow', { track: this.slim(track) }); }
   playNext(tracks) { this.send('playNext', { tracks: (Array.isArray(tracks) ? tracks : [tracks]).map((t) => this.slim(t)) }); }
   addLast(tracks) { this.send('addLast', { tracks: (Array.isArray(tracks) ? tracks : [tracks]).map((t) => this.slim(t)) }); }

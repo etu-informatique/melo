@@ -67,7 +67,9 @@ function go(route, tab = curTab) {
   if (route === 'radio') return goTab('radio');
   const h = `#/${tab}${route ? '/' + route : ''}`;
   if (h === location.hash) return render(true);
-  location.hash = h;
+  // On mémorise la page d'origine pour que « Retour » remonte vraiment l'historique.
+  history.pushState({ prev: location.hash }, '', h);
+  render();
 }
 go.refresh = () => render(true);
 ctx.go = go;
@@ -145,7 +147,9 @@ window.addEventListener('scroll', onScroll, { passive: true });
 
 $('#nav-back').addEventListener('click', () => {
   const st = stacks[curTab];
-  location.hash = st[st.length - 2] || `#/${curTab}`;
+  const prev = st[st.length - 2] || `#/${curTab}`;
+  if (history.state?.prev === prev) history.back();
+  else { history.replaceState(null, '', prev); render(); }
 });
 
 /* =====================================================================
@@ -288,8 +292,8 @@ function trackMenu(t, { plId, plIndex, fromNP } = {}) {
       { label: fav ? 'Retirer des favoris' : 'Favori', icon: fav ? 'starFill' : 'star', action: () => { const on = store.toggleFav(t); toast(on ? 'Ajouté aux favoris' : 'Retiré des favoris', on ? 'starFill' : 'star'); refreshMarks(); } },
       { sep: true },
       !t.live && { label: 'Créer une station', icon: 'station', action: () => { player.startStation(t); toast('Station créée', 'station'); } },
-      artistRoute && { label: "Aller à l'artiste", icon: 'mic', action: () => { closeNP(); go(artistRoute); } },
-      albumRoute && { label: "Aller à l'album", icon: 'album', action: () => { closeNP(); go(albumRoute); } },
+      artistRoute && { label: "Aller à l'artiste", icon: 'mic', action: () => goFromNP(artistRoute) },
+      albumRoute && { label: "Aller à l'album", icon: 'album', action: () => goFromNP(albumRoute) },
       { label: 'Partager…', icon: 'share', action: () => shareTrack(t) },
       t.link && { label: 'Écouter en entier sur Apple Music', icon: 'link', action: () => window.open(t.link, '_blank', 'noopener') },
       fromNP && !ctx.guest && { sep: true },
@@ -337,7 +341,10 @@ async function share(title, hash) {
   } catch { /* annulé */ }
 }
 function shareTrack(t) {
-  if (t.link) return share(t.title, '').then(() => {});
+  if (t.link) {
+    const data = { title: `${t.title} · ${t.artist}`, url: t.link };
+    return (navigator.share ? navigator.share(data) : navigator.clipboard.writeText(t.link).then(() => toast('Lien copié', 'link'))).catch(() => {});
+  }
   const r = t.artistId ? `artist/${t.artistId.slice(0, 2)}/${t.artistId.slice(3)}` : '';
   return share(`${t.title} · ${t.artist}`, `#/home/${r}`);
 }
@@ -381,8 +388,10 @@ function deletePlaylist(id) {
 }
 
 function editPlaylist(id) {
-  const p = store.playlist(id);
-  if (!p) return;
+  const orig = store.playlist(id);
+  if (!orig) return;
+  // On modifie une copie : « Annuler » ne garde rien.
+  const p = { ...orig, tracks: [...orig.tracks] };
   const rows = () => p.tracks.map((t, i) => `<div class="edit-row" data-i="${i}"><button class="er-del" data-del="${i}" aria-label="Retirer">${icon('minus')}</button>${img(t.art, t.id)}<div class="row-main"><div class="row-title">${esc(t.title)}</div><div class="row-sub">${esc(t.artist)}</div></div><button class="er-mv" data-up="${i}" aria-label="Monter" ${i === 0 ? 'disabled' : ''}>${icon('chevL')}</button><button class="er-mv" data-down="${i}" aria-label="Descendre" ${i === p.tracks.length - 1 ? 'disabled' : ''}>${icon('chevL')}</button></div>`).join('');
   openSheet({
     cls: 'tall',
@@ -398,7 +407,7 @@ function editPlaylist(id) {
         if (d) { p.tracks.splice(+d.dataset.del, 1); redraw(); }
         if (u) { const i = +u.dataset.up; [p.tracks[i - 1], p.tracks[i]] = [p.tracks[i], p.tracks[i - 1]]; redraw(); }
         if (dn) { const i = +dn.dataset.down; [p.tracks[i + 1], p.tracks[i]] = [p.tracks[i], p.tracks[i + 1]]; redraw(); }
-        if (e.target.closest('[data-save]')) { store.renamePlaylist(id, b.querySelector('.edit-name').value.trim() || p.name, b.querySelector('.edit-desc').value.trim()); close(); render(true); }
+        if (e.target.closest('[data-save]')) { store.setPlaylistTracks(id, p.tracks); store.renamePlaylist(id, b.querySelector('.edit-name').value.trim() || p.name, b.querySelector('.edit-desc').value.trim()); close(); render(true); }
         if (e.target.closest('[data-delpl]')) { close(); setTimeout(() => deletePlaylist(id), 250); }
       });
     },
@@ -467,7 +476,16 @@ function closeNP(fromPop = false) {
   document.body.classList.remove('np-open');
   if (!fromPop && history.state?.np) history.back();
 }
-window.addEventListener('popstate', () => { if (np.classList.contains('open')) closeNP(true); });
+let pendingRoute = null;
+// Fermer le lecteur puis naviguer : on attend que le retour d'historique soit fait.
+function goFromNP(route) {
+  if (np.classList.contains('open') && history.state?.np) { pendingRoute = route; closeNP(); }
+  else { closeNP(); go(route); }
+}
+window.addEventListener('popstate', () => {
+  if (np.classList.contains('open')) closeNP(true);
+  if (pendingRoute) { const r = pendingRoute; pendingRoute = null; go(r); }
+});
 enableSwipeDown(np.querySelector('.np-inner'), $('.np-grab'), () => closeNP(), (e) => !e.target.closest('.np-panel'));
 $('.np-grab').addEventListener('click', () => closeNP());
 
@@ -476,7 +494,7 @@ np.addEventListener('click', (e) => {
   if (b) { pcmd(b.dataset.p); return; }
   if (e.target.closest('.np-artist') || e.target.closest('.np-head-meta .a')) {
     const t = player.current;
-    if (t?.artistId && !t.live) { closeNP(); go(`artist/${t.artistId.slice(0, 2)}/${t.artistId.slice(3)}`); }
+    if (t?.artistId && !t.live) goFromNP(`artist/${t.artistId.slice(0, 2)}/${t.artistId.slice(3)}`);
     return;
   }
   if (e.target.closest('.np-head-art') || e.target.closest('.np-head-meta .t')) setMode('art');
@@ -520,8 +538,8 @@ function renderNP() {
     next.src = t.art || big || 'icons/icon.svg';
     next.classList.add('on'); prev.classList.remove('on');
     artLayer = artLayer === 1 ? 2 : 1;
-    if (npMode === 'lyrics') loadLyrics();
   }
+  if (npMode === 'lyrics') loadLyrics();
   const titleSpan = np.querySelector('.np-title span');
   if (titleSpan.textContent !== t.title) {
     titleSpan.textContent = t.title;
@@ -985,6 +1003,7 @@ let endedShown = false;
 function guestEnded() {
   if (endedShown) return;
   endedShown = true;
+  if (car) closeCar();
   openSheet({
     dismissable: false,
     html: `<div class="jam-intro"><div class="jam-ic">${icon('people')}</div><h2>La session est terminée</h2><p>L'hôte a arrêté la session partagée. Vous pouvez continuer à utiliser Mélo sur votre téléphone.</p><button class="btn-fill wide" data-ended>Continuer</button></div>`,

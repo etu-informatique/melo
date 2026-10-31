@@ -104,6 +104,7 @@ export const store = {
     return add.length;
   },
   removeFromPlaylist(id, index) { const p = this.playlist(id); if (p) { p.tracks.splice(index, 1); p.updated = Date.now(); save(); } },
+  setPlaylistTracks(id, tracks) { const p = this.playlist(id); if (p) { p.tracks = tracks; p.updated = Date.now(); save(); } },
   movePlaylistTrack(id, from, to) { const p = this.playlist(id); if (p) { const [x] = p.tracks.splice(from, 1); p.tracks.splice(to, 0, x); save(); } },
 
   /* Historique */
