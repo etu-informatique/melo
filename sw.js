@@ -1,7 +1,7 @@
 // Service worker : met l'interface en cache pour un lancement instantané et hors ligne.
 // L'audio et les API ne sont jamais mis en cache ici.
 
-const VERSION = 'melo-v3';
+const VERSION = 'melo-v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/api.js', 'js/core.js', 'js/jam.js', 'js/player.js', 'js/store.js', 'js/ui.js', 'js/views.js',
@@ -34,7 +34,8 @@ self.addEventListener('fetch', (e) => {
 
   // Réseau d'abord pour l'interface (mises à jour immédiates), cache en secours.
   if (sameOrigin) {
-    e.respondWith(fetch(req).then((res) => {
+    // « no-cache » : on revalide auprès du serveur pour ne jamais servir une ancienne version.
+    e.respondWith(fetch(req, { cache: 'no-cache' }).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true }).then((r) => r || caches.match('index.html'))));

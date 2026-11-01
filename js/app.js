@@ -1056,5 +1056,16 @@ async function boot() {
 boot();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+    // Vérifie s'il existe une nouvelle version à chaque retour sur l'appli.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+  }).catch(() => {});
+  // Nouvelle version installée : on recharge, mais jamais en pleine lecture.
+  let hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) { hadController = true; return; }
+    const reload = () => { if (!player.playing) location.reload(); };
+    if (player.playing) { toast('Mise à jour prête — elle s\'appliquera à la prochaine pause', 'download'); player.addEventListener('change', reload); }
+    else reload();
+  });
 }
