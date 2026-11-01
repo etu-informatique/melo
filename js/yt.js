@@ -162,10 +162,14 @@ function setState(st) {
   else if (st === 0) emit('ended');
   else if (st === 3) emit('waiting');
 }
+let lastT = 0;
 function poll() {
-  let st;
-  try { st = player.getPlayerState(); } catch { return; }
+  let st, t;
+  try { st = player.getPlayerState(); t = player.getCurrentTime() || 0; } catch { return; }
   if (!ids.length) return;
+  // YouTube renvoie parfois « non démarré » alors que le temps avance : c'est qu'il joue.
+  if (st !== 0 && st !== 2 && t > lastT + 0.1) st = 1;
+  lastT = t;
   setState(st);
   if (st === 1) emit('time');
 }

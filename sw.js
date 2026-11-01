@@ -1,7 +1,7 @@
 // Service worker : met l'interface en cache pour un lancement instantané et hors ligne.
 // L'audio et les API ne sont jamais mis en cache ici.
 
-const VERSION = 'melo-v8';
+const VERSION = 'melo-v9';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/app.js', 'js/api.js', 'js/core.js', 'js/jam.js', 'js/player.js', 'js/store.js', 'js/ui.js', 'js/views.js', 'js/yt.js',
