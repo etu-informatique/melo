@@ -136,14 +136,8 @@ function ensure() {
         width: '100%', height: '100%',
         playerVars: { playsinline: 1, controls: 0, rel: 0, modestbranding: 1, iv_load_policy: 3, fs: 0, disablekb: 1, origin: location.origin },
         events: {
-          onReady: () => res(player),
-          onStateChange: (e) => {
-            state = e.data;
-            if (e.data === 1) { hasPlayed = true; clearTimeout(watchdog); startTimer(); emit('playing'); }
-            else if (e.data === 2) { emit('pause'); }
-            else if (e.data === 0) { stopTimer(); emit('ended'); }
-            else if (e.data === 3) emit('waiting');
-          },
+          onReady: () => { timer = setInterval(poll, 250); res(player); },
+          onStateChange: (e) => setState(e.data),
           onError: () => {
             // Certaines maisons de disques interdisent l'intégration : on oublie cette vidéo.
             const bad = ids[idx];
@@ -159,8 +153,23 @@ function ensure() {
   return readyP;
 }
 
-function startTimer() { stopTimer(); timer = setInterval(() => emit('time'), 250); }
-function stopTimer() { clearInterval(timer); timer = null; }
+// État suivi par l'événement YouTube ET par sondage (l'événement se perd parfois en arrière-plan).
+function setState(st) {
+  if (st === state) return;
+  state = st;
+  if (st === 1) { hasPlayed = true; clearTimeout(watchdog); emit('playing'); }
+  else if (st === 2) emit('pause');
+  else if (st === 0) emit('ended');
+  else if (st === 3) emit('waiting');
+}
+function poll() {
+  let st;
+  try { st = player.getPlayerState(); } catch { return; }
+  if (!ids.length) return;
+  setState(st);
+  if (st === 1) emit('time');
+}
+function stopTimer() { /* le sondage tourne en continu, rien à arrêter */ }
 
 export const yt = {
   preload: () => ensure(),
@@ -172,7 +181,7 @@ export const yt = {
   },
   play() { player?.playVideo(); },
   pause() { player?.pauseVideo(); },
-  stop() { clearTimeout(watchdog); stopTimer(); state = -1; try { player?.stopVideo(); } catch { /* */ } },
+  stop() { clearTimeout(watchdog); ids = []; state = -1; try { player?.stopVideo(); } catch { /* */ } },
   seek(t) { player?.seekTo(t, true); },
   setVolume(v) { player?.setVolume(Math.round(v * 100)); },
   get needsTap() { return !hasPlayed; },
