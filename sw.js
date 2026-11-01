@@ -1,10 +1,10 @@
 // Service worker : met l'interface en cache pour un lancement instantané et hors ligne.
 // L'audio et les API ne sont jamais mis en cache ici.
 
-const VERSION = 'melo-v5';
+const VERSION = 'melo-v6';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/api.js', 'js/core.js', 'js/jam.js', 'js/player.js', 'js/store.js', 'js/ui.js', 'js/views.js',
+  'js/app.js', 'js/api.js', 'js/core.js', 'js/jam.js', 'js/player.js', 'js/store.js', 'js/ui.js', 'js/views.js', 'js/yt.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 const LIBS = [

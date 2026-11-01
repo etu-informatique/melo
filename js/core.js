@@ -2,6 +2,7 @@
 
 import { esc, icon, img, fmtTime, fmtCount, initials, hueOf } from './ui.js';
 import { store } from './store.js';
+import { quotaOk } from './yt.js';
 
 export const ctx = {
   player: null,      // Player local ou RemotePlayer (passager)
@@ -28,7 +29,7 @@ export const getObj = (k) => objs.get(k);
 
 export const isCurrent = (t) => ctx.player?.current?.id === t.id;
 
-const badge = (t) => `${t.explicit ? '<span class="tag-e" title="Explicite">E</span>' : ''}${t.preview ? '<span class="tag-p">Extrait</span>' : ''}${t.live ? '<span class="tag-live">Direct</span>' : ''}`;
+const badge = (t) => `${t.explicit ? '<span class="tag-e" title="Explicite">E</span>' : ''}${t.preview && !quotaOk() ? '<span class="tag-p">Extrait</span>' : ''}${t.live ? '<span class="tag-live">Direct</span>' : ''}`;
 
 export function eq() { return '<span class="eq"><i></i><i></i><i></i><i></i></span>'; }
 

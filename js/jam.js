@@ -269,6 +269,8 @@ export class RemotePlayer extends EventTarget {
   get people() { return this.s.people || []; }
   get host() { return this.s.host; }
   get volume() { return this.s.vol ?? 1; }
+  get full() { return !!this.s.full; }
+  get engine() { return 'remote'; }
 
   _optimistic(fn) { fn(this.s); this.recvAt = Date.now(); this._emit('change'); this._emit('time'); }
 

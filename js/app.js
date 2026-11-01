@@ -472,6 +472,7 @@ function openNP() {
 function closeNP(fromPop = false) {
   if (!np.classList.contains('open')) return;
   np.classList.remove('open');
+  placePip();
   np.setAttribute('aria-hidden', 'true');
   document.body.classList.remove('np-open');
   if (!fromPop && history.state?.np) history.back();
@@ -502,12 +503,36 @@ np.addEventListener('click', (e) => {
 
 function setMode(m) {
   npMode = m;
+  setTimeout(placePip, 0);
   np.classList.toggle('mode-lyrics', m === 'lyrics');
   np.classList.toggle('mode-queue', m === 'queue');
   np.querySelectorAll('[data-p="lyrics"],[data-p="queue"]').forEach((b) => b.classList.toggle('on', b.dataset.p === m));
   if (m === 'lyrics') loadLyrics();
   if (m === 'queue') renderQueue();
 }
+
+/* ---------- Lecteur vidéo YouTube (titres complets du catalogue Apple) ---------- */
+// L'iframe ne doit jamais changer de parent (elle se rechargerait) : on la déplace en position fixe.
+const pip = $('#yt-pip');
+function placePip() {
+  const on = !ctx.guest && player.engine === 'yt' && !!player.current;
+  pip.hidden = !on;
+  np.classList.toggle('video', on);
+  if (!on) return;
+  let r = null, mode = 'float';
+  if (car) { r = car.querySelector('.car-art')?.getBoundingClientRect(); mode = 'car'; }
+  else if (np.classList.contains('open')) {
+    if (npMode === 'art') { r = np.querySelector('.np-art img')?.getBoundingClientRect(); mode = 'np'; }
+    else { const h = np.querySelector('.np-head-art')?.getBoundingClientRect(); if (h) r = { left: h.left, top: h.top + h.height / 2 - 32, width: 114, height: 64 }; mode = 'np-small'; }
+  }
+  pip.className = 'pip-' + mode;
+  if (r && r.width) Object.assign(pip.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: '', bottom: '' });
+  else Object.assign(pip.style, { left: '', top: '', width: '', height: '', right: '', bottom: '' });
+}
+addEventListener('resize', () => placePip());
+pip.querySelector('.pip-open').addEventListener('click', () => openNP());
+// Le lecteur plein écran s'anime : on recale la vidéo à la fin de l'animation.
+np.addEventListener('transitionend', (e) => { if (e.target === np) placePip(); });
 
 function renderMini() {
   const t = player.current;
@@ -551,8 +576,10 @@ function renderNP() {
   np.querySelector('.np-head-meta .t').textContent = t.title;
   np.querySelector('.np-head-meta .a').textContent = t.artist;
   const badge = np.querySelector('.np-badge');
-  badge.hidden = !(t.preview || t.live);
+  const isExtract = t.preview && !player.full && player.engine === 'audio' && !!player.audio?.src;
+  badge.hidden = !(t.live || isExtract || (ctx.guest && t.preview && !player.full));
   badge.textContent = t.live ? 'EN DIRECT' : 'EXTRAIT 30 s';
+  placePip();
   np.querySelectorAll('.np-fav').forEach((b) => { setIcon(b, store.isFav(t.id) ? 'starFill' : 'star'); b.classList.toggle('on', store.isFav(t.id)); });
   setIcon(np.querySelector('[data-p="toggle"]'), player.playing ? 'pause' : 'play');
   np.classList.toggle('paused', !player.playing);
@@ -899,6 +926,7 @@ async function openCar() {
     <div class="car-side"><div class="car-qr"></div><div class="car-code"></div><div class="car-hint">Scannez pour choisir la musique</div><div class="car-next"></div></div>`;
   document.body.appendChild(car);
   document.body.classList.add('car-on');
+  setTimeout(placePip, 50);
   car.addEventListener('click', (e) => {
     const a = e.target.closest('[data-car]')?.dataset.car;
     if (a === 'x') return closeCar();
@@ -912,6 +940,7 @@ function closeCar() {
   car?.remove();
   car = null;
   document.body.classList.remove('car-on');
+  placePip();
   wakeLock?.release?.();
   wakeLock = null;
   if (document.fullscreenElement) document.exitFullscreen?.();

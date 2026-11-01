@@ -4,6 +4,7 @@
 import { audius, similar } from './api.js';
 import { store } from './store.js';
 import { toast } from './ui.js';
+import { yt, ytEvents, findVideos, cachedVideos } from './yt.js';
 
 const QKEY = 'melo:queue';
 let qidSeq = Date.now() % 1e6;
@@ -31,18 +32,22 @@ export class Player extends EventTarget {
     this.remote = false;
     this.loadingMore = false;
     this.wantPlay = false;
+    this.engine = 'audio';   // 'audio' (fichier direct) ou 'yt' (lecteur YouTube officiel)
+    this.full = false;       // titre du catalogue Apple joué en entier via YouTube
+    this._loadTok = 0;
     this._bind();
+    this._bindYt();
     this._restore();
   }
 
   /* ---------- état ---------- */
   get current() { return this.queue[this.index] || null; }
-  get playing() { return !this.audio.paused && !this.audio.ended; }
-  get position() { return this.audio.currentTime || 0; }
+  get playing() { return this.engine === 'yt' ? yt.playing : !this.audio.paused && !this.audio.ended; }
+  get position() { return this.engine === 'yt' ? yt.position : this.audio.currentTime || 0; }
   get duration() {
     const c = this.current;
     if (c?.live) return Infinity;
-    const d = this.audio.duration;
+    const d = this.engine === 'yt' ? yt.duration : this.audio.duration;
     return isFinite(d) && d > 0 ? d : (c?.duration || 0);
   }
   get upNext() { return this.queue.slice(this.index + 1); }
@@ -102,17 +107,18 @@ export class Player extends EventTarget {
   play() {
     if (!this.current) return;
     this.wantPlay = true;
+    if (this.engine === 'yt') { yt.play(); return; }
     if (!this.audio.src) return this._load(true);
     const p = this.audio.play();
     if (p) p.catch((e) => { if (e.name === 'NotAllowedError') { this.wantPlay = false; this._emit(); toast('Touchez ▶︎ pour lancer la lecture', 'info'); } });
   }
-  pause() { this.wantPlay = false; this.audio.pause(); }
+  pause() { this.wantPlay = false; if (this.engine === 'yt') yt.pause(); else this.audio.pause(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   next(auto = false) {
     if (!this.queue.length) return;
     if (auto && this.sleepEnd) { this.sleepEnd = false; this._emit(); this.pause(); return; }
-    if (auto && this.repeat === 'one') { this.audio.currentTime = 0; this.play(); return; }
+    if (auto && this.repeat === 'one') { this.seek(0); this.play(); return; }
     if (this.index < this.queue.length - 1) { this.index++; this._load(true); return; }
     if (this.repeat === 'all') { this.index = 0; this._load(true); return; }
     if (this.autoplay) { this._extend(true); return; }
@@ -128,7 +134,9 @@ export class Player extends EventTarget {
 
   seek(sec) {
     if (!this.current || this.current.live) return;
-    try { this.audio.currentTime = Math.max(0, Math.min(sec, (this.duration || 0) - 0.25)); } catch { /* pas encore prêt */ }
+    const to = Math.max(0, Math.min(sec, (this.duration || 0) - 0.25));
+    if (this.engine === 'yt') yt.seek(to);
+    else try { this.audio.currentTime = to; } catch { /* pas encore prêt */ }
     this._emit('time');
     this._emit('seeked');
   }
@@ -187,7 +195,7 @@ export class Player extends EventTarget {
   cycleRepeat() { this.setRepeat({ off: 'all', all: 'one', one: 'off' }[this.repeat]); }
   setRepeat(r) { this.repeat = r; this._emit(); }
   setAutoplay(on) { this.autoplay = on; store.setSetting('autoplay', on); this._emit(); if (on && this.index >= this.queue.length - 2) this._extend(false); }
-  setVolume(v) { this.audio.volume = Math.max(0, Math.min(1, v)); this._emit('time'); }
+  setVolume(v) { this.audio.volume = Math.max(0, Math.min(1, v)); yt.setVolume(this.audio.volume); this._emit('time'); }
 
   setSleep(min) {
     clearTimeout(this._sleepT);
@@ -247,6 +255,7 @@ export class Player extends EventTarget {
       autoplay: this.autoplay,
       from: this.from,
       vol: this.audio.volume,
+      full: this.full,
     };
   }
 
@@ -274,18 +283,73 @@ export class Player extends EventTarget {
 
   _load(autoplay) {
     const t = this.current;
-    if (!t) { this.audio.removeAttribute('src'); this.audio.load(); this._emit(); this._media(); return; }
+    const tok = ++this._loadTok;
+    if (!t) { this._stopYt(); this.audio.removeAttribute('src'); this.audio.load(); this._emit(); this._media(); return; }
     this.wantPlay = autoplay;
+    store.pushHistory(t);
+    if (t.src === 'apple') {
+      // Catalogue Apple : on cherche le titre officiel complet sur YouTube.
+      const known = cachedVideos(t);
+      if (known) this._playYt(known, autoplay, t);
+      else {
+        this.full = false;
+        this.audio.pause();
+        if (this.engine === 'yt') yt.pause();
+        this._emit();
+        findVideos(t).then((ids) => {
+          if (tok !== this._loadTok) return;
+          if (ids) this._playYt(ids, this.wantPlay, t);
+          else this._playAudio(t, this.wantPlay);
+        });
+      }
+    } else this._playAudio(t, autoplay);
+    this._emit();
+    this._media();
+    this._prefetch();
+    if (this.autoplay && this.index >= this.queue.length - 2 && !t.live) this._extend(false);
+  }
+
+  _playAudio(t, autoplay) {
+    this._stopYt();
+    this.full = false;
     this.audio.src = sourceUrl(t);
     this.audio.load();
     if (autoplay) {
       const p = this.audio.play();
       if (p) p.catch((e) => { if (e.name === 'NotAllowedError') { this.wantPlay = false; this._emit(); } });
     }
-    if (!t.live || true) store.pushHistory(t);
     this._emit();
-    this._media();
-    if (this.autoplay && this.index >= this.queue.length - 2 && !t.live) this._extend(false);
+  }
+
+  _playYt(ids, autoplay, t) {
+    this.audio.pause();
+    this.audio.removeAttribute('src');
+    this.audio.load();
+    this.engine = 'yt';
+    this.full = true;
+    yt.load(ids, autoplay, t);
+    this._emit();
+  }
+
+  _stopYt() {
+    if (this.engine === 'yt') yt.stop();
+    this.engine = 'audio';
+  }
+
+  // Cherche à l'avance le clip du titre suivant pour enchaîner sans attente.
+  _prefetch() {
+    const n = this.queue[this.index + 1];
+    if (n && n.src === 'apple' && !cachedVideos(n)) setTimeout(() => findVideos(n), 4000);
+  }
+
+  _bindYt() {
+    ytEvents.addEventListener('playing', () => { if (this.engine === 'yt') { this.errors = 0; this._emit(); this._mediaState(); } });
+    ytEvents.addEventListener('pause', () => { if (this.engine === 'yt') { this._emit(); this._mediaState(); } });
+    ytEvents.addEventListener('waiting', () => { if (this.engine === 'yt') this._emit('time'); });
+    ytEvents.addEventListener('time', () => { if (this.engine === 'yt') this._emit('time'); });
+    ytEvents.addEventListener('ended', () => { if (this.engine === 'yt') this.next(true); });
+    ytEvents.addEventListener('fail', () => { if (this.engine === 'yt' && this.current) this._playAudio(this.current, this.wantPlay); });
+    ytEvents.addEventListener('quota', () => toast('Limite YouTube du jour atteinte : extraits jusqu’à demain', 'info'));
   }
 
   _bind() {
@@ -302,7 +366,7 @@ export class Player extends EventTarget {
       if (now - last > 4000) { last = now; this._persistPos(); this._mediaPos(); }
     });
     a.addEventListener('error', () => {
-      if (!this.current || !a.src) return;
+      if (!this.current || !a.src || this.engine === 'yt') return;
       this.errors++;
       if (this.errors > 4) { toast('Plusieurs morceaux illisibles — vérifiez la connexion', 'info'); this.pause(); this.errors = 0; return; }
       toast(`« ${this.current.title} » est indisponible`, 'info');
@@ -369,7 +433,7 @@ export class Player extends EventTarget {
       this.shuffle = !!s.shuffle; this.repeat = s.repeat || 'off'; this.from = s.from || '';
       const t = this.current;
       if (t) {
-        this.audio.src = sourceUrl(t);
+        if (t.src !== 'apple') this.audio.src = sourceUrl(t);
         this.audio.preload = 'metadata';
         if (s.pos && !t.live) this.audio.addEventListener('loadedmetadata', () => { try { this.audio.currentTime = s.pos; } catch { /* */ } }, { once: true });
         this._media();

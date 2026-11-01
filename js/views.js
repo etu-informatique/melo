@@ -225,7 +225,7 @@ export async function collection([src, ...idp]) {
       ${art}
       <h1 class="col-title">${esc(col.title)}</h1>
       ${col.artistId ? `<button class="col-artist" data-go="artist/${col.artistId.slice(0, 2)}/${col.artistId.slice(3)}">${esc(col.artist)}</button>` : `<div class="col-artist">${esc(col.artist || '')}</div>`}
-      <div class="col-meta">${esc(meta)}${col.src === 'apple' ? ' · <span class="tag-p">Extraits 30 s</span>' : ''}</div>
+      <div class="col-meta">${esc(meta)}</div>
       ${tracks.length ? collectionButtons(k) : ''}
       ${col.desc ? `<p class="col-desc" data-clamp>${esc(col.desc)}</p>` : ''}
     </div>
@@ -249,7 +249,7 @@ export async function artist([src, id]) {
     return {
       title: a.name,
       html: `<div class="artist-hero">${img(a.art, a.name)}<div class="ah-fade"></div><div class="ah-row"><h1>${esc(a.name)}</h1><button class="ah-play" data-act="play" data-l="${k}" aria-label="Lire">${icon('play')}</button></div></div>
-        <div class="pad-note">${icon('info')}Extraits de 30 secondes · « Écouter en entier » dans le menu ··· d'un titre.</div>
+        
         ${songs.length ? shelf('Top morceaux', songGrid(songs, a.name)) : ''}
         ${cardShelf(albums.filter((x) => x.count > 3), 'Albums')}
         ${cardShelf(albums.filter((x) => x.count <= 3), 'Singles et EP')}`,
@@ -383,7 +383,7 @@ function results(r, q) {
   const artCards = artists.filter((a) => a !== topArtist).map((a) => `<div class="card round" data-go="${artistRoute(a)}"${photoAttr(a)}><div class="card-art">${img(a.art, a.name, '', initialsOf(a.name))}</div><div class="card-title">${esc(a.name)}</div><div class="card-sub">${esc(a.genre || (a.followers != null ? `${fmtCount(a.followers)} abonnés` : 'Artiste'))}</div></div>`).join('');
   return [
     shelf('Meilleur résultat', top),
-    songs.length ? shelf('Morceaux', trackList(songs.slice(0, 12), `Recherche « ${q} »`), { sub: 'Extraits de 30 s' }) : '',
+    songs.length ? shelf('Morceaux', trackList(songs.slice(0, 12), `Recherche « ${q} »`)) : '',
     artCards ? shelf('Artistes', `<div class="shelf-scroll">${artCards}</div>`) : '',
     cardShelf(albums, 'Albums'),
     full.length ? shelf('Morceaux complets gratuits', trackList(full.slice(0, 12), `Recherche « ${q} »`)) : '',
