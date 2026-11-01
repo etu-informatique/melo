@@ -4,7 +4,7 @@
 import { audius, similar } from './api.js';
 import { store } from './store.js';
 import { toast } from './ui.js';
-import { yt, ytEvents, findVideos, cachedVideos } from './yt.js';
+import { yt, ytEvents, findVideos, findMore, cachedVideos } from './yt.js';
 
 const QKEY = 'melo:queue';
 let qidSeq = Date.now() % 1e6;
@@ -329,6 +329,8 @@ export class Player extends EventTarget {
     this.full = true;
     yt.load(ids, autoplay, t);
     this._emit();
+    // Sur iPhone, la toute première vidéo doit être lancée d'un appui sur la vidéo.
+    if (autoplay) setTimeout(() => { if (this.engine === 'yt' && !yt.playing && yt.needsTap && this.wantPlay) this._emit('needtap'); }, 2500);
   }
 
   _stopYt() {
@@ -348,7 +350,15 @@ export class Player extends EventTarget {
     ytEvents.addEventListener('waiting', () => { if (this.engine === 'yt') this._emit('time'); });
     ytEvents.addEventListener('time', () => { if (this.engine === 'yt') this._emit('time'); });
     ytEvents.addEventListener('ended', () => { if (this.engine === 'yt') this.next(true); });
-    ytEvents.addEventListener('fail', () => { if (this.engine === 'yt' && this.current) this._playAudio(this.current, this.wantPlay); });
+    ytEvents.addEventListener('fail', () => {
+      if (this.engine !== 'yt' || !this.current) return;
+      const t = this.current, tok = this._loadTok;
+      findMore(t).then((ids) => {
+        if (tok !== this._loadTok) return;
+        if (ids) this._playYt(ids, this.wantPlay, t);
+        else this._playAudio(t, this.wantPlay);
+      });
+    });
     ytEvents.addEventListener('quota', () => toast('Limite YouTube du jour atteinte : extraits jusqu’à demain', 'info'));
   }
 

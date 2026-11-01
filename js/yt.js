@@ -46,29 +46,41 @@ function score(item, t) {
   return s;
 }
 
+async function search(q, t, exclude = new Set()) {
+  if (!quotaOk()) return null;
+  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&maxResults=10&q=${encodeURIComponent(q)}&key=${KEY}`;
+  let j;
+  try { j = await (await fetch(url)).json(); } catch { return null; }
+  if (j.error) {
+    const reason = j.error.errors?.[0]?.reason || '';
+    if (/quota|rateLimit|dailyLimit/i.test(reason)) { try { localStorage.setItem(QKEY, quotaDay()); } catch { /* */ } emit('quota'); }
+    return null;
+  }
+  return (j.items || []).map((it) => ({ id: it.id.videoId, s: score(it, t) })).filter((x) => x.id && x.s > 0 && !exclude.has(x.id)).sort((a, b) => b.s - a.s).map((x) => x.id).slice(0, 6);
+}
+
 /** Renvoie une liste d'identifiants de vidéos (meilleure d'abord), ou null. */
 export async function findVideos(t) {
   const k = keyOf(t);
   curKey = k;
   const hit = cache[k];
   if (hit && (hit.ids?.length || Date.now() - hit.at < 7 * 864e5)) return hit.ids?.length ? hit.ids : null;
-  if (!quotaOk()) return null;
-  const q = `${mainArtist(t.artist)} ${cleanTitle(t.title)}`;
-  const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&videoEmbeddable=true&videoSyndicated=true&maxResults=8&q=${encodeURIComponent(q)}&key=${KEY}`;
-  let j;
-  try {
-    const r = await fetch(url);
-    j = await r.json();
-  } catch { return null; }
-  if (j.error) {
-    const reason = j.error.errors?.[0]?.reason || '';
-    if (/quota|rateLimit|dailyLimit/i.test(reason)) { try { localStorage.setItem(QKEY, quotaDay()); } catch { /* */ } emit('quota'); }
-    return null;
-  }
-  const ranked = (j.items || []).map((it) => ({ id: it.id.videoId, s: score(it, t) })).filter((x) => x.id && x.s > 0).sort((a, b) => b.s - a.s).map((x) => x.id);
-  cache[k] = { ids: ranked.slice(0, 6), at: Date.now() };
+  const ranked = await search(`${mainArtist(t.artist)} ${cleanTitle(t.title)}`, t);
+  if (!ranked) return null;
+  cache[k] = { ids: ranked, tried: [], at: Date.now() };
   saveCache();
-  return ranked.length ? ranked.slice(0, 6) : null;
+  return ranked.length ? ranked : null;
+}
+
+/** Seconde chance quand toutes les vidéos officielles refusent l'intégration : autres versions du titre. */
+export async function findMore(t) {
+  const k = keyOf(t);
+  const c = cache[k] || { ids: [], tried: [], at: Date.now() };
+  if (c.more) return null;
+  const ranked = await search(`${mainArtist(t.artist)} ${cleanTitle(t.title)} lyrics`, t, new Set(c.tried || []));
+  cache[k] = { ...c, ids: ranked || [], more: true, at: Date.now() };
+  saveCache();
+  return ranked?.length ? ranked : null;
 }
 
 /** Version synchrone : identifiants déjà connus (pour enchaîner sans attendre). */
@@ -88,6 +100,20 @@ let loadKey = '';
 let idx = 0;
 let timer = null;
 let state = -1;
+let hasPlayed = false;   // une première lecture a eu lieu (sur iPhone, il faut un appui)
+let watchdog = null;
+
+// Vidéo qui ne démarre jamais (restriction silencieuse) : on passe à la suivante.
+function arm(autoplay) {
+  clearTimeout(watchdog);
+  if (!autoplay || !hasPlayed) return;
+  watchdog = setTimeout(() => { if (state !== 1 && state !== 2) skip(); }, 9000);
+}
+function skip() {
+  clearTimeout(watchdog);
+  if (idx + 1 < ids.length) { idx++; player.loadVideoById(ids[idx]); arm(true); }
+  else { stopTimer(); emit('fail'); }
+}
 
 function loadApi() {
   if (!apiP) {
@@ -113,7 +139,7 @@ function ensure() {
           onReady: () => res(player),
           onStateChange: (e) => {
             state = e.data;
-            if (e.data === 1) { startTimer(); emit('playing'); }
+            if (e.data === 1) { hasPlayed = true; clearTimeout(watchdog); startTimer(); emit('playing'); }
             else if (e.data === 2) { emit('pause'); }
             else if (e.data === 0) { stopTimer(); emit('ended'); }
             else if (e.data === 3) emit('waiting');
@@ -122,10 +148,9 @@ function ensure() {
             // Certaines maisons de disques interdisent l'intégration : on oublie cette vidéo.
             const bad = ids[idx];
             const c = cache[loadKey];
-            if (c?.ids) { c.ids = c.ids.filter((x) => x !== bad); saveCache(); }
+            if (c) { c.ids = (c.ids || []).filter((x) => x !== bad); c.tried = [...new Set([...(c.tried || []), bad])]; saveCache(); }
             // Vidéo non intégrable ou supprimée : on tente la suivante, sinon on abandonne.
-            if (idx + 1 < ids.length) { idx++; player.loadVideoById(ids[idx]); }
-            else { stopTimer(); emit('fail'); }
+            skip();
           },
         },
       });
@@ -143,12 +168,14 @@ export const yt = {
     ids = [...videoIds]; idx = 0; loadKey = track ? keyOf(track) : curKey;
     const p = await ensure();
     if (autoplay) p.loadVideoById(ids[0]); else p.cueVideoById(ids[0]);
+    arm(autoplay);
   },
   play() { player?.playVideo(); },
   pause() { player?.pauseVideo(); },
-  stop() { stopTimer(); state = -1; try { player?.stopVideo(); } catch { /* */ } },
+  stop() { clearTimeout(watchdog); stopTimer(); state = -1; try { player?.stopVideo(); } catch { /* */ } },
   seek(t) { player?.seekTo(t, true); },
   setVolume(v) { player?.setVolume(Math.round(v * 100)); },
+  get needsTap() { return !hasPlayed; },
   get playing() { return state === 1 || state === 3; },
   get position() { try { return player?.getCurrentTime() || 0; } catch { return 0; } },
   get duration() { try { return player?.getDuration() || 0; } catch { return 0; } },

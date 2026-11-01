@@ -1026,6 +1026,7 @@ function openSettings() {
    ===================================================================== */
 player.addEventListener('change', () => { renderNP(); if (ctx.guest) { renderBanner(); refreshJamSheet(); } });
 player.addEventListener('time', () => tick());
+player.addEventListener('needtap', () => { openNP(); toast('Touchez la vidéo pour lancer la lecture (une seule fois)', 'play'); });
 player.addEventListener('status', () => { renderBanner(); refreshJamSheet(); if (player.status === 'ended') guestEnded(); });
 
 let endedShown = false;
