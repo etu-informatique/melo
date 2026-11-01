@@ -374,7 +374,9 @@ function results(r, q) {
   const { songs, artists, playlists, albums, stations = [], full = [] } = r;
   if (!songs.length && !artists.length && !playlists.length && !albums.length && !stations.length && !full.length) return empty('search', 'Aucun résultat', `Aucun résultat pour « ${q} ».`);
   const ql = q.toLowerCase().trim();
-  const topArtist = artists.find((a) => a.name.toLowerCase() === ql) || artists.find((a) => a.name.toLowerCase().startsWith(ql) && ql.length > 2);
+  // Seuls les artistes officiels (catalogue Apple ou comptes vérifiés) peuvent être « meilleur résultat ».
+  const official = artists.filter((a) => a.src === 'apple' || a.verified);
+  const topArtist = official.find((a) => a.name.toLowerCase() === ql) || official.find((a) => a.name.toLowerCase().startsWith(ql) && ql.length > 2);
   let top = '';
   if (topArtist) top = `<div class="top-hit" data-go="${artistRoute(topArtist)}"${photoAttr(topArtist)}><div class="row-art round big">${img(topArtist.art, topArtist.name, '', initialsOf(topArtist.name))}</div><div><div class="th-t">${esc(topArtist.name)}</div><div class="th-s">Artiste${topArtist.genre ? ' · ' + esc(topArtist.genre) : ''}</div></div>${icon('chevR', 'chev')}</div>`;
   else if (songs[0] || full[0]) { const t = songs[0] || full[0]; const k = reg([t], 'Recherche'); top = `<div class="top-hit" data-l="${k}" data-i="0" data-ctx><div class="row-art big">${img(t.art, t.id)}</div><div><div class="th-t">${esc(t.title)}</div><div class="th-s">Morceau · ${esc(t.artist)}</div></div><button class="th-play" aria-label="Lire">${icon('play')}</button></div>`; }

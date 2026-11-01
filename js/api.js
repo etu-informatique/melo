@@ -211,9 +211,9 @@ const IT = 'https://itunes.apple.com';
 const country = () => (navigator.language || 'fr-FR').split('-')[1]?.toLowerCase() || 'fr';
 
 export const apple = {
-  searchSongs: (q, limit = 30) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=${limit}&country=${country()}`).then((j) => clean(j.results, appleTrack)),
-  searchAlbums: (q, limit = 12) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&media=music&entity=album&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleAlbum)),
-  searchArtists: (q, limit = 8) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&media=music&entity=musicArtist&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleArtist)),
+  searchSongs: (q, limit = 30) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=song&limit=${limit}&country=${country()}`).then((j) => clean(j.results, appleTrack)),
+  searchAlbums: (q, limit = 12) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=album&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleAlbum)),
+  searchArtists: (q, limit = 8) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=musicArtist&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleArtist)),
   album: async (rid) => {
     const j = await getJSON(`${IT}/lookup?id=${rid}&entity=song&country=${country()}`);
     const res = j.results || [];
