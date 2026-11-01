@@ -758,6 +758,7 @@ body.np-open #toast-root, body.car-on #toast-root { left: 0; bottom: auto; top: 
 #yt-pip iframe, #yt-frame { width: 100%; height: 100%; display: block; border: 0; }
 #yt-pip.pip-np { z-index: 61; border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 #yt-pip.pip-np-small { z-index: 61; border-radius: 8px; }
+#yt-pip.pip-mini { z-index: 32; border-radius: 8px; box-shadow: none; }
 #yt-pip.pip-car { z-index: 91; border-radius: 8px; }
 #yt-pip.pip-float { }
 @media (min-width: 1000px) { #yt-pip.pip-float { right: 24px; bottom: calc(var(--mini-h) + 32px); width: 192px; height: 108px; } }

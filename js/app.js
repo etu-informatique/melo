@@ -527,8 +527,12 @@ function placePip() {
   const corner = (box, w) => box && box.width ? { left: box.right - w - 10, top: box.bottom - w * 9 / 16 - 10, width: w, height: w * 9 / 16 } : null;
   if (car) { r = corner(car.querySelector('.car-art')?.getBoundingClientRect(), 150); mode = 'car'; }
   else if (np.classList.contains('open')) {
-    if (npMode === 'art') { r = corner(np.querySelector('.np-art img')?.getBoundingClientRect(), 128); mode = 'np'; }
-    else { const h = np.querySelector('.np-head-art')?.getBoundingClientRect(); if (h) r = { left: h.left, top: h.top + h.height / 2 - 32, width: 114, height: 64 }; mode = 'np-small'; }
+    if (npMode === 'art') { r = corner(np.querySelector('.np-art img')?.getBoundingClientRect(), 96); mode = 'np'; }
+    else { const h = np.querySelector('.np-head-art')?.getBoundingClientRect(); if (h) r = { left: h.left, top: h.top, width: h.width, height: h.height }; mode = 'np-small'; }
+  } else if (!mini.hidden) {
+    // Lecteur fermé : la vidéo prend la place de la petite pochette du mini-lecteur.
+    const m = mini.querySelector('.mini-art').getBoundingClientRect();
+    if (m.width) { r = { left: m.left, top: m.top, width: m.width, height: m.height }; mode = 'mini'; }
   }
   pip.className = 'pip-' + mode + (pip.classList.contains('pending') ? ' pending' : '');
   if (r && r.width) Object.assign(pip.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: '', bottom: '' });

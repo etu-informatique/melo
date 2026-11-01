@@ -7,6 +7,18 @@ import { toast } from './ui.js';
 import { yt, ytEvents, findVideos, findMore, cachedVideos } from './yt.js';
 
 const QKEY = 'melo:queue';
+
+// Une seconde de silence (WAV) : jouée en boucle pendant les titres YouTube pour que Mélo
+// garde la main sur l'écran verrouillé (précédent / suivant, pochette, titre).
+function silentWav() {
+  const rate = 8000, n = rate, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+  const w = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+  for (let i = 0; i < n; i++) v.setUint8(44 + i, 128);
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+}
 let qidSeq = Date.now() % 1e6;
 const newQid = () => 'q' + (qidSeq++).toString(36);
 
@@ -35,6 +47,10 @@ export class Player extends EventTarget {
     this.engine = 'audio';   // 'audio' (fichier direct) ou 'yt' (lecteur YouTube officiel)
     this.full = false;       // titre du catalogue Apple joué en entier via YouTube
     this._loadTok = 0;
+    this.keep = new Audio();
+    this.keep.loop = true;
+    this.keep.preload = 'auto';
+    this.keepOff = false;     // désactivé si l'appareil coupe la vidéo à cause du silence
     this._bind();
     this._bindYt();
     this._restore();
@@ -112,7 +128,7 @@ export class Player extends EventTarget {
     const p = this.audio.play();
     if (p) p.catch((e) => { if (e.name === 'NotAllowedError') { this.wantPlay = false; this._emit(); toast('Touchez ▶︎ pour lancer la lecture', 'info'); } });
   }
-  pause() { this.wantPlay = false; if (this.engine === 'yt') yt.pause(); else this.audio.pause(); }
+  pause() { this.wantPlay = false; if (this.engine === 'yt') { yt.pause(); this._keep(false); } else this.audio.pause(); }
   toggle() { this.playing ? this.pause() : this.play(); }
 
   next(auto = false) {
@@ -348,8 +364,16 @@ export class Player extends EventTarget {
     else { this.wantPlay = false; this._emit(); }
   }
 
+  _keep(on) {
+    if (!on || this.keepOff) { this.keep.pause(); return; }
+    if (!this.keep.src) this.keep.src = silentWav();
+    this._keepAt = Date.now();
+    const pr = this.keep.play();
+    if (pr) pr.then(() => this._media()).catch(() => {});
+  }
+
   _stopYt() {
-    if (this.engine === 'yt') yt.stop();
+    if (this.engine === 'yt') { yt.stop(); this._keep(false); }
     this.engine = 'audio';
   }
 
@@ -360,10 +384,20 @@ export class Player extends EventTarget {
   }
 
   _bindYt() {
-    ytEvents.addEventListener('playing', () => { if (this.engine === 'yt') { this.errors = 0; this.ytStarted = true; this._emit(); this._mediaState(); } });
-    ytEvents.addEventListener('pause', () => { if (this.engine === 'yt') { this._emit(); this._mediaState(); } });
+    ytEvents.addEventListener('playing', () => { if (this.engine === 'yt') { this.errors = 0; this.ytStarted = true; this._keep(true); this._emit(); this._mediaState(); this._mediaPos(); } });
+    ytEvents.addEventListener('pause', () => {
+      if (this.engine !== 'yt') return;
+      // Si la vidéo s'est mise en pause juste après le démarrage du silence, c'est l'appareil
+      // qui refuse deux sons à la fois : on abandonne l'astuce et on relance la musique.
+      if (this.wantPlay && Date.now() - this._keepAt < 1500 && !this.keepOff) { this.keepOff = true; this._keep(false); yt.play(); return; }
+      this._keep(false); this._emit(); this._mediaState();
+    });
     ytEvents.addEventListener('waiting', () => { if (this.engine === 'yt') this._emit('time'); });
-    ytEvents.addEventListener('time', () => { if (this.engine === 'yt') this._emit('time'); });
+    ytEvents.addEventListener('time', () => {
+      if (this.engine !== 'yt') return;
+      this._emit('time');
+      if (Date.now() - (this._mpAt || 0) > 4000) { this._mpAt = Date.now(); this._mediaPos(); }
+    });
     ytEvents.addEventListener('ended', () => { if (this.engine === 'yt') this.next(true); });
     ytEvents.addEventListener('fail', () => {
       if (this.engine !== 'yt' || !this.current) return;
