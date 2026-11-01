@@ -770,3 +770,5 @@ body.np-open #toast-root, body.car-on #toast-root { left: 0; bottom: auto; top: 
 body.np-open #yt-pip.pip-float, body.car-on #yt-pip.pip-float { opacity: 0; pointer-events: none; }
 #np.video .np-head-art { opacity: 0; }
 #np.video.paused .np-art img { transform: none; }
+
+#yt-pip.pending { opacity: 0 !important; pointer-events: none; }

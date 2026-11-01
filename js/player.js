@@ -299,7 +299,7 @@ export class Player extends EventTarget {
         findVideos(t).then((ids) => {
           if (tok !== this._loadTok) return;
           if (ids) this._playYt(ids, this.wantPlay, t);
-          else this._playAudio(t, this.wantPlay);
+          else this._unavailable(t);
         });
       }
     } else this._playAudio(t, autoplay);
@@ -327,10 +327,25 @@ export class Player extends EventTarget {
     this.audio.load();
     this.engine = 'yt';
     this.full = true;
+    this.ytStarted = false;
     yt.load(ids, autoplay, t);
     this._emit();
     // Sur iPhone, la toute première vidéo doit être lancée d'un appui sur la vidéo.
     if (autoplay) setTimeout(() => { if (this.engine === 'yt' && !yt.playing && yt.needsTap && this.wantPlay) this._emit('needtap'); }, 2500);
+  }
+
+  // Pas de version complète trouvée : on ne joue jamais d'extrait, on passe au titre suivant.
+  _unavailable(t) {
+    this._stopYt();
+    this.audio.pause();
+    this.audio.removeAttribute('src');
+    this.full = false;
+    this.errors++;
+    if (this.errors > 5) { this.errors = 0; this.wantPlay = false; this._emit(); toast('Plusieurs titres indisponibles en entier pour le moment', 'info'); return; }
+    toast(`« ${t.title} » n'est pas disponible en entier — titre suivant`, 'info');
+    const go = this.wantPlay;
+    if (this.index < this.queue.length - 1 || this.repeat === 'all' || this.autoplay) { if (go) this.next(); else this._emit(); }
+    else { this.wantPlay = false; this._emit(); }
   }
 
   _stopYt() {
@@ -345,7 +360,7 @@ export class Player extends EventTarget {
   }
 
   _bindYt() {
-    ytEvents.addEventListener('playing', () => { if (this.engine === 'yt') { this.errors = 0; this._emit(); this._mediaState(); } });
+    ytEvents.addEventListener('playing', () => { if (this.engine === 'yt') { this.errors = 0; this.ytStarted = true; this._emit(); this._mediaState(); } });
     ytEvents.addEventListener('pause', () => { if (this.engine === 'yt') { this._emit(); this._mediaState(); } });
     ytEvents.addEventListener('waiting', () => { if (this.engine === 'yt') this._emit('time'); });
     ytEvents.addEventListener('time', () => { if (this.engine === 'yt') this._emit('time'); });
@@ -356,7 +371,7 @@ export class Player extends EventTarget {
       findMore(t).then((ids) => {
         if (tok !== this._loadTok) return;
         if (ids) this._playYt(ids, this.wantPlay, t);
-        else this._playAudio(t, this.wantPlay);
+        else this._unavailable(t);
       });
     });
     ytEvents.addEventListener('quota', () => toast('Limite YouTube du jour atteinte : extraits jusqu’à demain', 'info'));

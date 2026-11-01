@@ -511,12 +511,15 @@ function setMode(m) {
   if (m === 'queue') renderQueue();
 }
 
+const yt_needsTap = () => player.needTapShown === true;
 /* ---------- Lecteur vidéo YouTube (titres complets du catalogue Apple) ---------- */
 // L'iframe ne doit jamais changer de parent (elle se rechargerait) : on la déplace en position fixe.
 const pip = $('#yt-pip');
 function placePip() {
+  // La vignette n'apparaît qu'une fois la vidéo vraiment lancée (pas pendant les essais).
   const on = !ctx.guest && player.engine === 'yt' && !!player.current;
   pip.hidden = !on;
+  pip.classList.toggle('pending', on && !(player.ytStarted || yt_needsTap()));
   np.classList.toggle('video', on);
   if (!on) return;
   let r = null, mode = 'float';
@@ -527,7 +530,7 @@ function placePip() {
     if (npMode === 'art') { r = corner(np.querySelector('.np-art img')?.getBoundingClientRect(), 128); mode = 'np'; }
     else { const h = np.querySelector('.np-head-art')?.getBoundingClientRect(); if (h) r = { left: h.left, top: h.top + h.height / 2 - 32, width: 114, height: 64 }; mode = 'np-small'; }
   }
-  pip.className = 'pip-' + mode;
+  pip.className = 'pip-' + mode + (pip.classList.contains('pending') ? ' pending' : '');
   if (r && r.width) Object.assign(pip.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: '', bottom: '' });
   else Object.assign(pip.style, { left: '', top: '', width: '', height: '', right: '', bottom: '' });
 }
@@ -1028,7 +1031,7 @@ function openSettings() {
    ===================================================================== */
 player.addEventListener('change', () => { renderNP(); if (ctx.guest) { renderBanner(); refreshJamSheet(); } });
 player.addEventListener('time', () => tick());
-player.addEventListener('needtap', () => { openNP(); toast('Touchez la vidéo pour lancer la lecture (une seule fois)', 'play'); });
+player.addEventListener('needtap', () => { player.needTapShown = true; placePip(); openNP(); toast('Touchez la vidéo pour lancer la lecture (une seule fois)', 'play'); });
 player.addEventListener('status', () => { renderBanner(); refreshJamSheet(); if (player.status === 'ended') guestEnded(); });
 
 let endedShown = false;

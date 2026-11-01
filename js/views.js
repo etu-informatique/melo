@@ -307,7 +307,7 @@ export async function search() {
   return {
     title: 'Recherche',
     html: pageHead('Recherche') + `<div class="search-box"><div class="sb-field">${icon('search')}<input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Artistes, morceaux, paroles, radios…" value="${esc(lastQ)}"><button class="sb-clear" ${lastQ ? '' : 'hidden'} aria-label="Effacer">${icon('x')}</button></div></div>
-      <div class="seg" id="scope"><button data-v="all" class="${scope === 'all' ? 'on' : ''}">Tout</button><button data-v="audius" class="${scope === 'audius' ? 'on' : ''}">Complets gratuits</button><button data-v="lib" class="${scope === 'lib' ? 'on' : ''}">Bibliothèque</button></div>
+      <div class="seg" id="scope"><button data-v="all" class="${scope === 'all' ? 'on' : ''}">Tout</button><button data-v="lib" class="${scope === 'lib' ? 'on' : ''}">Bibliothèque</button></div>
       <div id="sr"></div>`,
     after(el) {
       const inp = el.querySelector('#q');
