@@ -221,6 +221,7 @@ export const apple = {
     const tracks = clean(res.filter((r) => r.wrapperType === 'track'), appleTrack).sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
     return { album: info ? appleAlbum(info) : null, tracks };
   },
+  artistSongs: (rid, limit = 25) => getJSON(`${IT}/lookup?id=${rid}&entity=song&limit=${limit}&country=${country()}`).then((j) => clean((j.results || []).filter((r) => r.wrapperType === 'track'), appleTrack)),
   artist: async (rid) => {
     const [a, s] = await Promise.all([
       getJSON(`${IT}/lookup?id=${rid}&entity=album&limit=30&country=${country()}`),
@@ -306,15 +307,71 @@ function parseLyrics(d) {
   return { synced: false, lines: d.plainLyrics.split('\n').map((text) => ({ t: -1, text })) };
 }
 
+/* ---------- Photos d'artistes (Deezer, en JSONP car l'API n'autorise pas CORS) ---------- */
+
+let jsonpSeq = 0;
+function jsonp(url, timeout = 8000) {
+  return new Promise((resolve, reject) => {
+    const cb = `__melo_jp${jsonpSeq++}`;
+    const s = document.createElement('script');
+    const done = (fn, v) => { clearTimeout(t); delete window[cb]; s.remove(); fn(v); };
+    const t = setTimeout(() => done(reject, new Error('timeout')), timeout);
+    window[cb] = (data) => done(resolve, data);
+    s.onerror = () => done(reject, new Error('jsonp'));
+    s.src = `${url}${url.includes('?') ? '&' : '?'}output=jsonp&callback=${cb}`;
+    document.head.appendChild(s);
+  });
+}
+
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+const photoCache = new Map();
+
+/** Photo d'un artiste à partir de son nom ('' si introuvable). */
+export function artistPhoto(name) {
+  const k = norm(name);
+  if (!k) return Promise.resolve('');
+  if (!photoCache.has(k)) {
+    photoCache.set(k, jsonp(`https://api.deezer.com/search/artist?q=${encodeURIComponent(name)}&limit=5`)
+      .then((d) => {
+        const hit = (d.data || []).find((a) => norm(a.name) === k);
+        return hit ? (hit.picture_xl || hit.picture_big || '') : '';
+      })
+      .catch(() => ''));
+  }
+  return photoCache.get(k);
+}
+
 /* ---------- Recherche groupée ---------- */
 
 export async function searchAll(q, scope) {
-  if (scope === 'apple') {
-    const [songs, albums, artists] = await Promise.allSettled([apple.searchSongs(q, 25), apple.searchAlbums(q, 12), apple.searchArtists(q, 8)]);
-    return { songs: songs.value || [], albums: albums.value || [], artists: artists.value || [], playlists: [] };
+  if (scope === 'audius') {
+    const [songs, artists, playlists, stations] = await Promise.allSettled([audius.searchTracks(q, 30), audius.searchUsers(q, 10), audius.searchPlaylists(q, 12), radio.search(q, 8)]);
+    return { songs: songs.value || [], artists: (artists.value || []).filter((a) => a.tracks > 0), playlists: playlists.value || [], albums: [], stations: stations.value || [], full: [] };
   }
-  const [songs, artists, playlists, stations] = await Promise.allSettled([audius.searchTracks(q, 30), audius.searchUsers(q, 10), audius.searchPlaylists(q, 12), radio.search(q, 8)]);
-  return { songs: songs.value || [], artists: artists.value || [], playlists: playlists.value || [], albums: [], stations: stations.value || [] };
+  // « Tout » : les vrais artistes du catalogue Apple d'abord, puis les morceaux complets gratuits.
+  const [songs, albums, artists, full, users, playlists, stations] = await Promise.allSettled([
+    apple.searchSongs(q, 25), apple.searchAlbums(q, 12), apple.searchArtists(q, 8),
+    audius.searchTracks(q, 15), audius.searchUsers(q, 6), audius.searchPlaylists(q, 8), radio.search(q, 6),
+  ]);
+  const apArtists = artists.value || [];
+  const taken = new Set(apArtists.map((a) => norm(a.name)));
+  // Si la recherche est le nom exact d'un artiste, ses titres passent avant les homonymes.
+  let songList = songs.value || [];
+  const exact = apArtists.find((a) => norm(a.name) === norm(q));
+  if (exact) {
+    const own = await apple.artistSongs(exact.rid).catch(() => []);
+    const seen = new Set(own.map((t) => t.id));
+    songList = [...own, ...songList.filter((t) => !seen.has(t.id))];
+  }
+  const auArtists = (users.value || []).filter((a) => a.tracks > 0 && a.followers >= 50 && !taken.has(norm(a.name)));
+  return {
+    songs: songList,
+    albums: albums.value || [],
+    artists: [...apArtists, ...auArtists],
+    playlists: playlists.value || [],
+    stations: stations.value || [],
+    full: full.value || [],
+  };
 }
 
 /** Trouve des morceaux proches pour la lecture automatique (∞). */

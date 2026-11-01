@@ -1,8 +1,8 @@
 // Pages de l'application. Chaque vue renvoie { title, html, after?(el) }.
 
-import { audius, apple, radio, GENRES, RADIO_TAGS, searchAll } from './api.js';
+import { audius, apple, radio, GENRES, RADIO_TAGS, searchAll, artistPhoto } from './api.js';
 import { store } from './store.js';
-import { esc, icon, img, fmtDuration, fmtCount, debounce, hydrateIcons } from './ui.js';
+import { esc, icon, img, fmtDuration, fmtCount, debounce, hydrateIcons, initials as initialsOf } from './ui.js';
 import { ctx, reg, trackList, songGrid, card, cardShelf, shelf, pageHead, avatar, spinner, empty, skeletonShelf, regObj } from './core.js';
 
 const settled = async (p, d = []) => { try { return await p; } catch { return d; } };
@@ -245,10 +245,11 @@ export async function artist([src, id]) {
     if (!r) return { title: '', html: empty('mic', 'Artiste introuvable', '') };
     const { artist: a, albums, songs } = r;
     const k = reg(songs, a.name);
+    a.art = (await artistPhoto(a.name)) || a.art;
     return {
       title: a.name,
       html: `<div class="artist-hero">${img(a.art, a.name)}<div class="ah-fade"></div><div class="ah-row"><h1>${esc(a.name)}</h1><button class="ah-play" data-act="play" data-l="${k}" aria-label="Lire">${icon('play')}</button></div></div>
-        <div class="pad-note">${icon('info')}Catalogue Apple Music : extraits de 30 secondes.</div>
+        <div class="pad-note">${icon('info')}Extraits de 30 secondes · « Écouter en entier » dans le menu ··· d'un titre.</div>
         ${songs.length ? shelf('Top morceaux', songGrid(songs, a.name)) : ''}
         ${cardShelf(albums.filter((x) => x.count > 3), 'Albums')}
         ${cardShelf(albums.filter((x) => x.count <= 3), 'Singles et EP')}`,
@@ -299,14 +300,14 @@ export async function list([kind, arg]) {
 }
 
 /* ================= Recherche ================= */
-let scope = 'audius';
+let scope = 'all';
 let lastQ = '';
 
 export async function search() {
   return {
     title: 'Recherche',
     html: pageHead('Recherche') + `<div class="search-box"><div class="sb-field">${icon('search')}<input id="q" type="search" enterkeyhint="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Artistes, morceaux, paroles, radios…" value="${esc(lastQ)}"><button class="sb-clear" ${lastQ ? '' : 'hidden'} aria-label="Effacer">${icon('x')}</button></div></div>
-      <div class="seg" id="scope"><button data-v="audius" class="${scope === 'audius' ? 'on' : ''}">Mélo · complets</button><button data-v="apple" class="${scope === 'apple' ? 'on' : ''}">Apple · extraits</button><button data-v="lib" class="${scope === 'lib' ? 'on' : ''}">Bibliothèque</button></div>
+      <div class="seg" id="scope"><button data-v="all" class="${scope === 'all' ? 'on' : ''}">Tout</button><button data-v="audius" class="${scope === 'audius' ? 'on' : ''}">Complets gratuits</button><button data-v="lib" class="${scope === 'lib' ? 'on' : ''}">Bibliothèque</button></div>
       <div id="sr"></div>`,
     after(el) {
       const inp = el.querySelector('#q');
@@ -325,6 +326,8 @@ export async function search() {
         const r = await searchAll(q, scope);
         if (my !== tok) return;
         out.innerHTML = results(r, q);
+        hydrateIcons(out);
+        fillPhotos(out);
       };
       const deb = debounce(() => run(false), 320);
       inp.addEventListener('input', deb);
@@ -343,7 +346,7 @@ export async function search() {
         if (r) { inp.value = r.dataset.recent; run(true); }
         if (e.target.closest('[data-action="clear-searches"]')) { store.clearSearches(); run(); }
       });
-      if (ctx.searchScope) { scope = ctx.searchScope; ctx.searchScope = null; el.querySelectorAll('#scope button').forEach((x) => x.classList.toggle('on', x.dataset.v === scope)); setTimeout(() => inp.focus(), 300); }
+      if (ctx.searchScope) { scope = ctx.searchScope === 'apple' ? 'all' : ctx.searchScope; ctx.searchScope = null; el.querySelectorAll('#scope button').forEach((x) => x.classList.toggle('on', x.dataset.v === scope)); setTimeout(() => inp.focus(), 300); }
       run();
     },
   };
@@ -355,20 +358,33 @@ function browseCats() {
     shelf('Parcourir les catégories', `<div class="tiles">${GENRES.map((g) => genreTile(g)).join('')}</div>`);
 }
 
+const artistRoute = (a) => `artist/${a.id.slice(0, 2)}/${a.id.slice(3)}`;
+const photoAttr = (a) => (a.src === 'apple' && !a.art ? ` data-photo="${esc(a.name)}"` : '');
+
+/** Remplit les photos d'artistes du catalogue Apple (qui n'en fournit pas). */
+export function fillPhotos(root) {
+  root.querySelectorAll('[data-photo]').forEach(async (n) => {
+    const url = await artistPhoto(n.dataset.photo);
+    const im = n.querySelector('img');
+    if (url && im) im.src = url;
+  });
+}
+
 function results(r, q) {
-  const { songs, artists, playlists, albums, stations = [] } = r;
-  if (!songs.length && !artists.length && !playlists.length && !albums.length && !stations.length) return empty('search', 'Aucun résultat', `Aucun résultat pour « ${q} ». Essayez l'autre catalogue ci-dessus.`);
-  const ql = q.toLowerCase();
-  const topArtist = artists.find((a) => a.name.toLowerCase() === ql) || (songs[0] && songs[0].artist.toLowerCase().includes(ql) ? null : null);
+  const { songs, artists, playlists, albums, stations = [], full = [] } = r;
+  if (!songs.length && !artists.length && !playlists.length && !albums.length && !stations.length && !full.length) return empty('search', 'Aucun résultat', `Aucun résultat pour « ${q} ».`);
+  const ql = q.toLowerCase().trim();
+  const topArtist = artists.find((a) => a.name.toLowerCase() === ql) || artists.find((a) => a.name.toLowerCase().startsWith(ql) && ql.length > 2);
   let top = '';
-  if (topArtist) top = `<div class="top-hit" data-go="artist/${topArtist.id.slice(0, 2)}/${topArtist.id.slice(3)}"><div class="row-art round big">${img(topArtist.art, topArtist.name)}</div><div><div class="th-t">${esc(topArtist.name)}</div><div class="th-s">Artiste</div></div></div>`;
-  else if (songs[0]) { const k = reg([songs[0]], 'Recherche'); top = `<div class="top-hit" data-l="${k}" data-i="0" data-ctx><div class="row-art big">${img(songs[0].art, songs[0].id)}</div><div><div class="th-t">${esc(songs[0].title)}</div><div class="th-s">Morceau · ${esc(songs[0].artist)}</div></div><button class="th-play" aria-label="Lire">${icon('play')}</button></div>`; }
-  const arts = artists.map((a) => ({ ...a, art: a.art || '' }));
+  if (topArtist) top = `<div class="top-hit" data-go="${artistRoute(topArtist)}"${photoAttr(topArtist)}><div class="row-art round big">${img(topArtist.art, topArtist.name, '', initialsOf(topArtist.name))}</div><div><div class="th-t">${esc(topArtist.name)}</div><div class="th-s">Artiste${topArtist.genre ? ' · ' + esc(topArtist.genre) : ''}</div></div>${icon('chevR', 'chev')}</div>`;
+  else if (songs[0] || full[0]) { const t = songs[0] || full[0]; const k = reg([t], 'Recherche'); top = `<div class="top-hit" data-l="${k}" data-i="0" data-ctx><div class="row-art big">${img(t.art, t.id)}</div><div><div class="th-t">${esc(t.title)}</div><div class="th-s">Morceau · ${esc(t.artist)}</div></div><button class="th-play" aria-label="Lire">${icon('play')}</button></div>`; }
+  const artCards = artists.filter((a) => a !== topArtist).map((a) => `<div class="card round" data-go="${artistRoute(a)}"${photoAttr(a)}><div class="card-art">${img(a.art, a.name, '', initialsOf(a.name))}</div><div class="card-title">${esc(a.name)}</div><div class="card-sub">${esc(a.genre || (a.followers != null ? `${fmtCount(a.followers)} abonnés` : 'Artiste'))}</div></div>`).join('');
   return [
     shelf('Meilleur résultat', top),
-    songs.length ? shelf('Morceaux', trackList(songs, `Recherche « ${q} »`)) : '',
-    arts.length ? shelf('Artistes', `<div class="shelf-scroll">${arts.map((a) => card(a, { round: true, sub: a.genre || (a.followers != null ? `${fmtCount(a.followers)} abonnés` : 'Artiste') })).join('')}</div>`) : '',
+    songs.length ? shelf('Morceaux', trackList(songs.slice(0, 12), `Recherche « ${q} »`), { sub: 'Extraits de 30 s' }) : '',
+    artCards ? shelf('Artistes', `<div class="shelf-scroll">${artCards}</div>`) : '',
     cardShelf(albums, 'Albums'),
+    full.length ? shelf('Morceaux complets gratuits', trackList(full.slice(0, 12), `Recherche « ${q} »`)) : '',
     cardShelf(playlists, 'Playlists'),
     stations.length ? shelf('Radios', trackList(stations, 'Radios')) : '',
   ].join('');

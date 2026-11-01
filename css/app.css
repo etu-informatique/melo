@@ -350,6 +350,7 @@ body.has-banner .search-box { top: calc(var(--nav-h) + var(--st) + 40px); }
 .sb-clear { width: 22px; height: 22px; border-radius: 50%; background: var(--text3); color: var(--bg); display: flex; align-items: center; justify-content: center; }
 .sb-clear .ic { width: 11px; height: 11px; }
 .top-hit { margin: 0 var(--pad); padding: 14px; border-radius: 14px; background: var(--bg2); display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; }
+.top-hit > .chev { margin-left: auto; width: 14px; height: 14px; color: var(--text3); }
 .th-t { font-size: 20px; font-weight: 700; }
 .th-s { color: var(--text2); font-size: 14px; margin-top: 2px; }
 .th-play { margin-left: auto; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
