@@ -208,11 +208,27 @@ export const audius = {
 /* ---------- Catalogue Apple (extraits) ---------- */
 
 const IT = 'https://itunes.apple.com';
+
+// Versions dérivées (instrumentales, karaoké, ralenties…) : masquées sauf si on les cherche exprès.
+const ALT = /instrumental|karaok|a ?cappella|sped ?up|slowed|reverb|8d audio|nightcore|backing track|in the style of/i;
+const isAlt = (x) => ALT.test(x.title || '') || ALT.test(x.album || '') || ALT.test(x.trackName || '') || ALT.test(x.collectionName || '');
+const wantsAlt = (q) => ALT.test(q || '');
+// Un même titre sort souvent sur plusieurs albums (single, album, deluxe) : on n'en garde qu'un.
+function dedupe(list) {
+  const seen = new Set();
+  return list.filter((t) => {
+    const k = `${(t.title || '').toLowerCase().replace(/s*[([].*?[)]]/g, '').trim()}|${(t.artist || '').toLowerCase()}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+const tidy = (list, q) => dedupe(wantsAlt(q) ? list : list.filter((t) => !isAlt(t)));
 const country = () => (navigator.language || 'fr-FR').split('-')[1]?.toLowerCase() || 'fr';
 
 export const apple = {
-  searchSongs: (q, limit = 30) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=song&limit=${limit}&country=${country()}`).then((j) => clean(j.results, appleTrack)),
-  searchAlbums: (q, limit = 12) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=album&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleAlbum)),
+  searchSongs: (q, limit = 30) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=song&limit=${limit}&country=${country()}`).then((j) => tidy(clean(j.results, appleTrack), q)),
+  searchAlbums: (q, limit = 12) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=album&limit=${limit}&country=${country()}`).then((j) => (j.results || []).filter((a) => wantsAlt(q) || !isAlt(a)).map(appleAlbum)),
   searchArtists: (q, limit = 8) => getJSON(`${IT}/search?term=${encodeURIComponent(q)}&entity=musicArtist&limit=${limit}&country=${country()}`).then((j) => (j.results || []).map(appleArtist)),
   album: async (rid) => {
     const j = await getJSON(`${IT}/lookup?id=${rid}&entity=song&country=${country()}`);
@@ -221,15 +237,15 @@ export const apple = {
     const tracks = clean(res.filter((r) => r.wrapperType === 'track'), appleTrack).sort((a, b) => (a.trackNumber || 0) - (b.trackNumber || 0));
     return { album: info ? appleAlbum(info) : null, tracks };
   },
-  artistSongs: (rid, limit = 25) => getJSON(`${IT}/lookup?id=${rid}&entity=song&limit=${limit}&country=${country()}`).then((j) => clean((j.results || []).filter((r) => r.wrapperType === 'track'), appleTrack)),
+  artistSongs: (rid, limit = 40) => getJSON(`${IT}/lookup?id=${rid}&entity=song&limit=${limit}&country=${country()}`).then((j) => tidy(clean((j.results || []).filter((r) => r.wrapperType === 'track'), appleTrack)).slice(0, 25)),
   artist: async (rid) => {
     const [a, s] = await Promise.all([
       getJSON(`${IT}/lookup?id=${rid}&entity=album&limit=30&country=${country()}`),
-      getJSON(`${IT}/lookup?id=${rid}&entity=song&limit=25&country=${country()}`),
+      getJSON(`${IT}/lookup?id=${rid}&entity=song&limit=40&country=${country()}`),
     ]);
     const info = (a.results || []).find((r) => r.wrapperType === 'artist');
-    const albums = (a.results || []).filter((r) => r.wrapperType === 'collection').map(appleAlbum);
-    const songs = clean((s.results || []).filter((r) => r.wrapperType === 'track'), appleTrack);
+    const albums = (a.results || []).filter((r) => r.wrapperType === 'collection' && !isAlt(r)).map(appleAlbum);
+    const songs = tidy(clean((s.results || []).filter((r) => r.wrapperType === 'track'), appleTrack));
     const artist = info ? appleArtist(info) : { id: `ap:${rid}`, name: songs[0]?.artist || 'Artiste' };
     artist.art = albums[0]?.artLg || songs[0]?.artLg || '';
     return { artist, albums, songs };

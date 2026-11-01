@@ -2,7 +2,7 @@
 // sur YouTube (API Data v3, clé limitée au site) et on le joue dans le lecteur YouTube officiel.
 
 const KEY = 'AIzaSyDkHyUQMhFaa5cfl8SYWynZScD7dikb72Q';
-const CKEY = 'melo:yt';
+const CKEY = 'melo:yt2'; // v2 : repart de zéro (anciens choix pouvaient être instrumentaux)
 const QKEY = 'melo:ytq';
 
 export const ytEvents = new EventTarget();
@@ -43,6 +43,8 @@ function score(item, t) {
   if (/lyrics|paroles|lyric video/.test(title)) s -= 2;
   const has = (txt, w) => new RegExp(`(^| )${w}( |$)`).test(txt);
   for (const w of BAD) if (has(title, w) && !has(want, w)) s -= 5;
+  // Jamais de version instrumentale, karaoké ou ralentie à la place du vrai titre.
+  if (/instrumental|karaok|nightcore|sped up|slowed|8d audio|backing track/.test(title) && !/instrumental|karaok/.test(want)) s -= 100;
   return s;
 }
 
