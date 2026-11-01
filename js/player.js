@@ -59,7 +59,8 @@ export class Player extends EventTarget {
   /* ---------- état ---------- */
   get current() { return this.queue[this.index] || null; }
   get playing() { return this.engine === 'yt' ? yt.playing : !this.audio.paused && !this.audio.ended; }
-  get position() { return this.engine === 'yt' ? yt.position : this.audio.currentTime || 0; }
+  // Tant que la nouvelle vidéo n'a pas démarré, l'ancienne position ne compte plus.
+  get position() { return this.engine === 'yt' ? (this.ytStarted ? yt.position : 0) : this.audio.currentTime || 0; }
   get duration() {
     const c = this.current;
     if (c?.live) return Infinity;
@@ -133,6 +134,7 @@ export class Player extends EventTarget {
 
   next(auto = false) {
     if (!this.queue.length) return;
+    this._dir = 1;
     if (auto && this.sleepEnd) { this.sleepEnd = false; this._emit(); this.pause(); return; }
     if (auto && this.repeat === 'one') { this.seek(0); this.play(); return; }
     if (this.index < this.queue.length - 1) { this.index++; this._load(true); return; }
@@ -144,6 +146,7 @@ export class Player extends EventTarget {
   prev() {
     if (!this.current) return;
     if (this.position > 3 || this.index === 0) { this.seek(0); this.play(); return; }
+    this._dir = -1;
     this.index--;
     this._load(true);
   }
@@ -300,6 +303,7 @@ export class Player extends EventTarget {
   _load(autoplay) {
     const t = this.current;
     const tok = ++this._loadTok;
+    this.ytStarted = false;
     if (!t) { this._stopYt(); this.audio.removeAttribute('src'); this.audio.load(); this._emit(); this._media(); return; }
     this.wantPlay = autoplay;
     store.pushHistory(t);
@@ -360,6 +364,8 @@ export class Player extends EventTarget {
     if (this.errors > 5) { this.errors = 0; this.wantPlay = false; this._emit(); toast('Plusieurs titres indisponibles en entier pour le moment', 'info'); return; }
     toast(`« ${t.title} » n'est pas disponible en entier — titre suivant`, 'info');
     const go = this.wantPlay;
+    // En revenant en arrière, on saute vers le titre précédent, pas vers le suivant.
+    if (this._dir === -1 && this.index > 0) { this.index--; this._load(go); return; }
     if (this.index < this.queue.length - 1 || this.repeat === 'all' || this.autoplay) { if (go) this.next(); else this._emit(); }
     else { this.wantPlay = false; this._emit(); }
   }
