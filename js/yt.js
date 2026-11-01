@@ -64,7 +64,7 @@ export async function findVideos(t) {
   const k = keyOf(t);
   curKey = k;
   const hit = cache[k];
-  if (hit && (hit.ids?.length || Date.now() - hit.at < 7 * 864e5)) return hit.ids?.length ? hit.ids : null;
+  if (hit && (hit.ids?.length || Date.now() - hit.at < 864e5)) return hit.ids?.length ? hit.ids : null;
   const ranked = await search(`${mainArtist(t.artist)} ${cleanTitle(t.title)}`, t);
   if (!ranked) return null;
   cache[k] = { ids: ranked, tried: [], at: Date.now() };
@@ -76,7 +76,7 @@ export async function findVideos(t) {
 export async function findMore(t) {
   const k = keyOf(t);
   const c = cache[k] || { ids: [], tried: [], at: Date.now() };
-  if (c.more) return null;
+  if (c.more && Date.now() - c.at < 864e5) return null;
   const ranked = await search(`${mainArtist(t.artist)} ${cleanTitle(t.title)} lyrics`, t, new Set(c.tried || []));
   cache[k] = { ...c, ids: ranked || [], more: true, at: Date.now() };
   saveCache();
@@ -138,11 +138,12 @@ function ensure() {
         events: {
           onReady: () => { timer = setInterval(poll, 250); res(player); },
           onStateChange: (e) => setState(e.data),
-          onError: () => {
-            // Certaines maisons de disques interdisent l'intégration : on oublie cette vidéo.
+          onError: (e) => {
+            // 101/150/151 : intégration interdite par la maison de disques -> on oublie cette vidéo.
+            // Les autres erreurs (réseau, lecteur) sont passagères : on passe sans la bannir.
             const bad = ids[idx];
             const c = cache[loadKey];
-            if (c) { c.ids = (c.ids || []).filter((x) => x !== bad); c.tried = [...new Set([...(c.tried || []), bad])]; saveCache(); }
+            if (c && [100, 101, 150, 151].includes(e?.data)) { c.ids = (c.ids || []).filter((x) => x !== bad); c.tried = [...new Set([...(c.tried || []), bad])]; saveCache(); }
             // Vidéo non intégrable ou supprimée : on tente la suivante, sinon on abandonne.
             skip();
           },
