@@ -520,9 +520,11 @@ function placePip() {
   np.classList.toggle('video', on);
   if (!on) return;
   let r = null, mode = 'float';
-  if (car) { r = car.querySelector('.car-art')?.getBoundingClientRect(); mode = 'car'; }
+  // La pochette reste affichée en grand ; la vidéo n'est qu'une vignette dans son coin.
+  const corner = (box, w) => box && box.width ? { left: box.right - w - 10, top: box.bottom - w * 9 / 16 - 10, width: w, height: w * 9 / 16 } : null;
+  if (car) { r = corner(car.querySelector('.car-art')?.getBoundingClientRect(), 150); mode = 'car'; }
   else if (np.classList.contains('open')) {
-    if (npMode === 'art') { r = np.querySelector('.np-art img')?.getBoundingClientRect(); mode = 'np'; }
+    if (npMode === 'art') { r = corner(np.querySelector('.np-art img')?.getBoundingClientRect(), 128); mode = 'np'; }
     else { const h = np.querySelector('.np-head-art')?.getBoundingClientRect(); if (h) r = { left: h.left, top: h.top + h.height / 2 - 32, width: 114, height: 64 }; mode = 'np-small'; }
   }
   pip.className = 'pip-' + mode;
